@@ -11,7 +11,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "clean": "rm -rf dist",
     "kill": "pkill -f 'node'",
-    "prebuild": "npm run clean"
+    "prebuild": "npm run clean",
+    "postinstall": "npm run build"
   },
   "keywords": [
     "flow",
@@ -20,14 +21,12 @@
   ],
   "author": "",
   "license": "ISC",
-  "devDependencies": {
+  "dependencies": {
+    "@types/express": "^5.0.0",
     "@types/node": "^20.11.5",
+    "express": "^4.21.1",
     "nodemon": "^3.0.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
-  },
-  "dependencies": {
-    "@types/express": "^5.0.0",
-    "express": "^4.21.1"
   }
 }
