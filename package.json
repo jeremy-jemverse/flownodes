@@ -1,19 +1,20 @@
 {
   "name": "flownodes",
   "version": "1.0.0",
-  "description": "A Node.js project for flow-based programming",
+  "description": "FlowNodes API",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
+    "prebuild": "npm run clean",
     "build": "tsc",
+    "clean": "rm -rf dist",
     "start": "ts-node src/index.ts",
-    "dev": "nodemon --exec ts-node src/index.ts",
+    "start:prod": "node dist/index.js",
+    "kill": "pkill -f 'node'",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "clean": "rm -rf dist",
-    "kill": "pkill -f 'node'",
-    "prebuild": "npm run clean",
+    "dev": "nodemon --exec ts-node src/index.ts",
     "postinstall": "npm run build"
   },
   "keywords": [
