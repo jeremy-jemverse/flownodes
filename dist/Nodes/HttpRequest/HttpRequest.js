@@ -9,12 +9,11 @@ const ValidationService_1 = require("./services/ValidationService");
 const CacheService_1 = require("./services/CacheService");
 class HttpRequest {
     constructor() {
-        this.validationService = new ValidationService_1.ValidationService();
         this.cacheService = new CacheService_1.CacheService();
     }
     async execute(parameters) {
         // Validate parameters
-        this.validationService.validateParameters(parameters);
+        ValidationService_1.ValidationService.validateParameters(parameters);
         // Check cache first
         if (parameters.cache && parameters.method === 'GET') {
             const cachedResponse = this.cacheService.get(parameters.url, parameters.method);
@@ -30,39 +29,43 @@ class HttpRequest {
             try {
                 const response = await this.makeRequest(parameters);
                 const duration = Date.now() - startTime;
-                // Cache successful GET responses
-                if (parameters.cache && parameters.method === 'GET') {
-                    this.cacheService.set(parameters.url, parameters.method, response, parameters.cache.ttl);
-                }
-                return {
-                    ...response,
+                const result = {
+                    statusCode: response.status,
+                    data: response.data,
+                    headers: this.normalizeHeaders(response.headers),
                     duration,
                     retryCount
                 };
+                // Cache successful GET responses
+                if (parameters.cache && parameters.method === 'GET') {
+                    this.cacheService.set(parameters.url, parameters.method, result, parameters.cache.ttl);
+                }
+                return result;
             }
             catch (error) {
-                const statusCode = error.response?.status;
+                const axiosError = error;
+                const statusCode = axiosError.response?.status;
                 const shouldRetry = parameters.retry &&
                     retryCount < parameters.retry.attempts &&
-                    this.validationService.shouldRetry(parameters, statusCode, retryCount);
+                    ValidationService_1.ValidationService.shouldRetry(parameters, statusCode, retryCount);
                 if (shouldRetry) {
                     retryCount++;
                     await new Promise(resolve => setTimeout(resolve, parameters.retry.delay));
                     continue;
                 }
                 // If we shouldn't retry, or we've exhausted retries, return the error response
-                if (error.response) {
+                if (axiosError.response) {
                     const duration = Date.now() - startTime;
                     return {
-                        statusCode: error.response.status,
-                        data: error.response.data,
-                        headers: error.response.headers,
+                        statusCode: axiosError.response.status,
+                        data: axiosError.response.data,
+                        headers: this.normalizeHeaders(axiosError.response.headers),
                         duration,
                         retryCount
                     };
                 }
                 // For network errors, timeout errors, etc.
-                throw error;
+                throw axiosError;
             }
         }
     }
@@ -75,12 +78,14 @@ class HttpRequest {
             data: parameters.body,
             timeout: parameters.timeout
         };
-        const response = await (0, axios_1.default)(config);
-        return {
-            statusCode: response.status,
-            data: response.data,
-            headers: response.headers
-        };
+        return (0, axios_1.default)(config);
+    }
+    normalizeHeaders(headers) {
+        const normalized = {};
+        Object.entries(headers || {}).forEach(([key, value]) => {
+            normalized[key] = String(value);
+        });
+        return normalized;
     }
     clearCache() {
         this.cacheService.clear();

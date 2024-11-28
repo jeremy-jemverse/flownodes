@@ -12,12 +12,6 @@ router.post('/cache/clear', (req: Request, res: Response) => {
   res.json({ message: 'Cache cleared successfully' });
 });
 
-// Clear expired cache entries
-router.post('/cache/clear-expired', (req: Request, res: Response) => {
-  httpRequest.clearExpiredCache();
-  res.json({ message: 'Expired cache entries cleared successfully' });
-});
-
 // Main execute endpoint
 router.post('/execute', (async (req: Request, res: Response) => {
   try {
@@ -32,29 +26,14 @@ router.post('/execute', (async (req: Request, res: Response) => {
       });
     }
 
-    // Execute the request
-    const result = await httpRequest.execute(parameters);
-
-    // Return detailed response
-    return res.json({
-      ...result,
-      metadata: {
-        cached: result.fromCache || false,
-        retries: result.retryCount || 0,
-        duration: result.duration || 0,
-      },
-    });
-  } catch (error: any) {
-    // Enhanced error response
-    return res.status(500).json({
-      error: {
-        message: error.message || 'Internal server error',
-        type: error.name || 'Error',
-        retryCount: error.retryCount,
-        details: error.response?.data,
-      },
+    const response = await httpRequest.execute(parameters);
+    res.status(response.statusCode).json(response);
+  } catch (error) {
+    console.error('Error executing request:', error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : 'Internal server error',
     });
   }
-}) as any);
+}));
 
 export default router;

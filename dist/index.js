@@ -4,9 +4,20 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
+const cors_1 = __importDefault(require("cors"));
 const routes_1 = __importDefault(require("./Nodes/HttpRequest/routes"));
 const app = (0, express_1.default)();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 4000;
+// CORS configuration
+const corsOptions = {
+    origin: process.env.CORS_ORIGIN || '*', // Allow all origins in development
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    maxAge: 86400 // 24 hours
+};
+// Middleware
+app.use((0, cors_1.default)(corsOptions));
 app.use(express_1.default.json());
 // Sample API route
 app.get('/api/hello', (req, res) => {
