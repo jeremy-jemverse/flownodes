@@ -2,12 +2,6 @@ import { ValidationService } from '../services/ValidationService';
 import { HttpRequestParameters } from '../types';
 
 describe('ValidationService', () => {
-  let validationService: ValidationService;
-
-  beforeEach(() => {
-    validationService = new ValidationService();
-  });
-
   describe('validateParameters', () => {
     it('should validate valid parameters', () => {
       const params: HttpRequestParameters = {
@@ -25,7 +19,7 @@ describe('ValidationService', () => {
         }
       };
 
-      expect(() => validationService.validateParameters(params)).not.toThrow();
+      expect(() => ValidationService.validateParameters(params)).not.toThrow();
     });
 
     it('should throw error for missing URL', () => {
@@ -33,7 +27,7 @@ describe('ValidationService', () => {
         method: 'GET'
       };
 
-      expect(() => validationService.validateParameters(params)).toThrow('URL is required');
+      expect(() => ValidationService.validateParameters(params)).toThrow('URL is required');
     });
 
     it('should throw error for missing method', () => {
@@ -41,7 +35,7 @@ describe('ValidationService', () => {
         url: 'https://api.example.com/test'
       };
 
-      expect(() => validationService.validateParameters(params)).toThrow('HTTP method is required');
+      expect(() => ValidationService.validateParameters(params)).toThrow('HTTP method is required');
     });
 
     it('should throw error for invalid URL format', () => {
@@ -50,7 +44,7 @@ describe('ValidationService', () => {
         method: 'GET'
       };
 
-      expect(() => validationService.validateParameters(params)).toThrow('Invalid URL format');
+      expect(() => ValidationService.validateParameters(params)).toThrow('Invalid URL format');
     });
 
     it('should throw error for invalid HTTP method', () => {
@@ -59,7 +53,7 @@ describe('ValidationService', () => {
         method: 'INVALID'
       };
 
-      expect(() => validationService.validateParameters(params)).toThrow('Invalid HTTP method');
+      expect(() => ValidationService.validateParameters(params)).toThrow('Invalid HTTP method');
     });
 
     describe('retry configuration validation', () => {
@@ -74,7 +68,7 @@ describe('ValidationService', () => {
           }
         };
 
-        expect(() => validationService.validateParameters(params)).not.toThrow();
+        expect(() => ValidationService.validateParameters(params)).not.toThrow();
       });
 
       it('should throw error for invalid retry attempts', () => {
@@ -88,7 +82,7 @@ describe('ValidationService', () => {
           }
         };
 
-        expect(() => validationService.validateParameters(params)).toThrow('Invalid retry attempts');
+        expect(() => ValidationService.validateParameters(params)).toThrow('Invalid retry attempts');
       });
 
       it('should throw error for invalid retry delay', () => {
@@ -102,7 +96,7 @@ describe('ValidationService', () => {
           }
         };
 
-        expect(() => validationService.validateParameters(params)).toThrow('Invalid retry delay');
+        expect(() => ValidationService.validateParameters(params)).toThrow('Invalid retry delay');
       });
 
       it('should throw error for invalid status codes', () => {
@@ -116,7 +110,7 @@ describe('ValidationService', () => {
           }
         };
 
-        expect(() => validationService.validateParameters(params)).toThrow('Invalid status codes');
+        expect(() => ValidationService.validateParameters(params)).toThrow('Invalid status codes');
       });
     });
 
@@ -130,7 +124,7 @@ describe('ValidationService', () => {
           }
         };
 
-        expect(() => validationService.validateParameters(params)).not.toThrow();
+        expect(() => ValidationService.validateParameters(params)).not.toThrow();
       });
 
       it('should throw error for invalid cache TTL', () => {
@@ -142,7 +136,7 @@ describe('ValidationService', () => {
           }
         };
 
-        expect(() => validationService.validateParameters(params)).toThrow('Invalid cache TTL');
+        expect(() => ValidationService.validateParameters(params)).toThrow('Invalid cache TTL');
       });
     });
 
@@ -157,7 +151,7 @@ describe('ValidationService', () => {
           }
         };
 
-        expect(() => validationService.validateParameters(params)).not.toThrow();
+        expect(() => ValidationService.validateParameters(params)).not.toThrow();
       });
 
       it('should throw error for invalid header values', () => {
@@ -169,7 +163,7 @@ describe('ValidationService', () => {
           }
         };
 
-        expect(() => validationService.validateParameters(params)).toThrow('Invalid header value');
+        expect(() => ValidationService.validateParameters(params)).toThrow('Invalid header value');
       });
 
       it('should validate valid query parameters', () => {
@@ -182,7 +176,7 @@ describe('ValidationService', () => {
           }
         };
 
-        expect(() => validationService.validateParameters(params)).not.toThrow();
+        expect(() => ValidationService.validateParameters(params)).not.toThrow();
       });
 
       it('should throw error for invalid query parameter values', () => {
@@ -194,7 +188,7 @@ describe('ValidationService', () => {
           }
         };
 
-        expect(() => validationService.validateParameters(params)).toThrow('Invalid query parameter value');
+        expect(() => ValidationService.validateParameters(params)).toThrow('Invalid query parameter value');
       });
     });
   });
@@ -211,7 +205,7 @@ describe('ValidationService', () => {
         }
       };
 
-      expect(validationService.shouldRetry(params, 500, 3)).toBe(false);
+      expect(ValidationService.shouldRetry(params, 500, 3)).toBe(false);
     });
 
     it('should return true for server errors by default', () => {
@@ -225,7 +219,7 @@ describe('ValidationService', () => {
         }
       };
 
-      expect(validationService.shouldRetry(params, 500, 1)).toBe(true);
+      expect(ValidationService.shouldRetry(params, 500, 1)).toBe(true);
     });
 
     it('should return true for rate limit errors by default', () => {
@@ -239,7 +233,7 @@ describe('ValidationService', () => {
         }
       };
 
-      expect(validationService.shouldRetry(params, 429, 1)).toBe(true);
+      expect(ValidationService.shouldRetry(params, 429, 1)).toBe(true);
     });
 
     it('should return true for timeout errors by default', () => {
@@ -253,7 +247,7 @@ describe('ValidationService', () => {
         }
       };
 
-      expect(validationService.shouldRetry(params, 408, 1)).toBe(true);
+      expect(ValidationService.shouldRetry(params, 408, 1)).toBe(true);
     });
 
     it('should return false for successful responses', () => {
@@ -267,7 +261,7 @@ describe('ValidationService', () => {
         }
       };
 
-      expect(validationService.shouldRetry(params, 200, 1)).toBe(false);
+      expect(ValidationService.shouldRetry(params, 200, 1)).toBe(false);
     });
 
     it('should respect custom status codes to retry', () => {
@@ -281,7 +275,7 @@ describe('ValidationService', () => {
         }
       };
 
-      expect(validationService.shouldRetry(params, 418, 1)).toBe(true);
+      expect(ValidationService.shouldRetry(params, 418, 1)).toBe(true);
     });
   });
 });

@@ -4,11 +4,9 @@ import { ValidationService } from './services/ValidationService';
 import { CacheService } from './services/CacheService';
 
 export class HttpRequest {
-  private validationService: ValidationService;
   private cacheService: CacheService;
 
   constructor() {
-    this.validationService = new ValidationService();
     this.cacheService = new CacheService();
   }
 

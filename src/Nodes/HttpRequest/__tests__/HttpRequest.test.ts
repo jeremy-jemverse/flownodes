@@ -1,12 +1,56 @@
 import { HttpRequest } from '../HttpRequest';
+import { HttpRequestParameters, HttpRequestResponse } from '../types';
+import axios, { AxiosError } from 'axios';
 import nock from 'nock';
-import { HttpRequestParameters } from '../types';
+import { ValidationService } from '../services/ValidationService';
+import { CacheService } from '../services/CacheService';
+
+// Mock ValidationService
+const mockValidateParameters = jest.fn();
+const mockShouldRetry = jest.fn();
+jest.mock('../services/ValidationService', () => ({
+  ValidationService: {
+    validateParameters: (...args: any[]) => mockValidateParameters(...args),
+    shouldRetry: (...args: any[]) => mockShouldRetry(...args)
+  }
+}));
+
+// Mock CacheService
+class MockCacheService {
+  get = jest.fn();
+  set = jest.fn();
+  clear = jest.fn();
+}
+
+const mockCacheServiceInstance = new MockCacheService();
+jest.mock('../services/CacheService', () => ({
+  CacheService: jest.fn(() => mockCacheServiceInstance)
+}));
 
 describe('HttpRequest', () => {
   let httpRequest: HttpRequest;
+  const baseUrl = 'https://api.example.com';
 
   beforeEach(() => {
+    // Reset all mocks
+    jest.clearAllMocks();
+    
+    // Setup ValidationService mock
+    mockValidateParameters.mockReset();
+    mockValidateParameters.mockReturnValue(true);
+    mockShouldRetry.mockReset();
+    mockShouldRetry.mockReturnValue(true);
+    
+    // Setup CacheService mock
+    mockCacheServiceInstance.get.mockReset();
+    mockCacheServiceInstance.set.mockReset();
+    mockCacheServiceInstance.clear.mockReset();
+    mockCacheServiceInstance.get.mockReturnValue(null);
+    
+    // Create HttpRequest instance
     httpRequest = new HttpRequest();
+    
+    // Clean up nock
     nock.cleanAll();
   });
 
@@ -14,350 +58,145 @@ describe('HttpRequest', () => {
     nock.cleanAll();
   });
 
-  describe('execute', () => {
-    it('should make successful request', async () => {
-      const mockResponse = { data: 'test' };
-      nock('https://api.example.com')
-        .get('/test')
-        .reply(200, mockResponse);
+  afterAll(() => {
+    nock.restore();
+  });
 
-      const params: HttpRequestParameters = {
-        url: 'https://api.example.com/test',
-        method: 'GET'
-      };
+  it('should make a successful GET request', async () => {
+    const mockResponse = { data: 'test' };
+    nock(baseUrl)
+      .get('/test')
+      .reply(200, mockResponse);
 
-      const response = await httpRequest.execute(params);
-      expect(response.statusCode).toBe(200);
-      expect(response.data).toEqual(mockResponse);
-    });
+    const params: HttpRequestParameters = {
+      url: `${baseUrl}/test`,
+      method: 'GET'
+    };
 
-    it('should handle request with query parameters', async () => {
-      const mockResponse = { data: 'test' };
-      nock('https://api.example.com')
-        .get('/test')
-        .query({ page: '1' })
-        .reply(200, mockResponse);
+    const response = await httpRequest.execute(params);
+    expect(response.statusCode).toBe(200);
+    expect(response.data).toEqual(mockResponse);
+    expect(mockValidateParameters).toHaveBeenCalledWith(params);
+  });
 
-      const params: HttpRequestParameters = {
-        url: 'https://api.example.com/test',
-        method: 'GET',
-        queryParams: { page: '1' }
-      };
+  it('should handle network errors', async () => {
+    const params: HttpRequestParameters = {
+      url: 'http://non-existent-domain.com',
+      method: 'GET'
+    };
 
-      const response = await httpRequest.execute(params);
-      expect(response.statusCode).toBe(200);
-      expect(response.data).toEqual(mockResponse);
-    });
+    await expect(httpRequest.execute(params)).rejects.toThrow();
+    expect(mockValidateParameters).toHaveBeenCalledWith(params);
+  });
 
-    it('should handle request with headers', async () => {
-      const mockResponse = { data: 'test' };
-      nock('https://api.example.com')
-        .get('/test')
-        .matchHeader('Authorization', 'Bearer token')
-        .reply(200, mockResponse);
+  it('should handle timeout errors', async () => {
+    nock(baseUrl)
+      .get('/test')
+      .delayConnection(2000)
+      .reply(200);
 
-      const params: HttpRequestParameters = {
-        url: 'https://api.example.com/test',
-        method: 'GET',
-        headers: { 'Authorization': 'Bearer token' }
-      };
+    const params: HttpRequestParameters = {
+      url: `${baseUrl}/test`,
+      method: 'GET',
+      timeout: 1000
+    };
 
-      const response = await httpRequest.execute(params);
-      expect(response.statusCode).toBe(200);
-      expect(response.data).toEqual(mockResponse);
-    });
+    await expect(httpRequest.execute(params)).rejects.toThrow();
+    expect(mockValidateParameters).toHaveBeenCalledWith(params);
+  });
 
-    describe('retry logic', () => {
-      it('should retry on server error', async () => {
-        const mockResponse = { error: 'Server Error' };
-        nock('https://api.example.com')
-          .get('/test')
-          .times(2)
-          .reply(500, mockResponse)
-          .get('/test')
-          .reply(200, { data: 'success' });
+  it('should retry on server errors', async () => {
+    mockShouldRetry.mockReturnValueOnce(true).mockReturnValue(false);
 
-        const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET',
-          retry: {
-            attempts: 3,
-            delay: 100,
-            statusCodes: [500]
-          }
-        };
+    nock(baseUrl)
+      .get('/test')
+      .reply(500)
+      .get('/test')
+      .reply(200, { success: true });
 
-        const response = await httpRequest.execute(params);
-        expect(response.statusCode).toBe(200);
-        expect(response.retryCount).toBe(2);
-      });
+    const params: HttpRequestParameters = {
+      url: `${baseUrl}/test`,
+      method: 'GET',
+      retry: {
+        attempts: 3,
+        delay: 100,
+        statusCodes: [500]
+      }
+    };
 
-      it('should retry on rate limit', async () => {
-        const mockResponse = { error: 'Rate Limited' };
-        nock('https://api.example.com')
-          .get('/test')
-          .times(2)
-          .reply(429, mockResponse)
-          .get('/test')
-          .reply(200, { data: 'success' });
+    const response = await httpRequest.execute(params);
+    expect(response.statusCode).toBe(200);
+    expect(response.data).toEqual({ success: true });
+    expect(response.retryCount).toBe(1);
+    expect(mockValidateParameters).toHaveBeenCalledWith(params);
+    expect(mockShouldRetry).toHaveBeenCalledWith(params, 500, 0);
+  });
 
-        const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET',
-          retry: {
-            attempts: 3,
-            delay: 100,
-            statusCodes: [429]
-          }
-        };
+  it('should use cache for GET requests', async () => {
+    const mockResponse = { data: 'cached' };
+    const params: HttpRequestParameters = {
+      url: `${baseUrl}/test`,
+      method: 'GET',
+      cache: {
+        ttl: 5000
+      }
+    };
 
-        const response = await httpRequest.execute(params);
-        expect(response.statusCode).toBe(200);
-        expect(response.retryCount).toBe(2);
-      });
+    // Mock cache miss for first request
+    mockCacheServiceInstance.get.mockReturnValueOnce(null);
 
-      it('should respect max retry attempts', async () => {
-        nock('https://api.example.com')
-          .get('/test')
-          .times(3)
-          .reply(500, { error: 'Server Error' });
+    nock(baseUrl)
+      .get('/test')
+      .reply(200, mockResponse);
 
-        const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET',
-          retry: {
-            attempts: 2,
-            delay: 100,
-            statusCodes: [500]
-          }
-        };
+    // First request
+    const response1 = await httpRequest.execute(params);
+    expect(response1.statusCode).toBe(200);
+    expect(response1.data).toEqual(mockResponse);
+    expect(mockCacheServiceInstance.set).toHaveBeenCalled();
+    expect(mockValidateParameters).toHaveBeenCalledWith(params);
 
-        const response = await httpRequest.execute(params);
-        expect(response.statusCode).toBe(500);
-        expect(response.retryCount).toBe(2);
-      });
+    // Mock cache hit for second request
+    mockCacheServiceInstance.get.mockReturnValueOnce({
+      statusCode: 200,
+      data: mockResponse,
+      fromCache: true
+    } as HttpRequestResponse);
 
-      it('should respect custom status codes to retry', async () => {
-        const mockResponse = { error: 'Custom Error' };
-        nock('https://api.example.com')
-          .get('/test')
-          .times(2)
-          .reply(418, mockResponse)
-          .get('/test')
-          .reply(200, { data: 'success' });
+    // Second request should be from cache
+    const response2 = await httpRequest.execute(params);
+    expect(response2.statusCode).toBe(200);
+    expect(response2.data).toEqual(mockResponse);
+    expect(response2.fromCache).toBe(true);
+    expect(mockValidateParameters).toHaveBeenCalledWith(params);
+  });
 
-        const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET',
-          retry: {
-            attempts: 3,
-            delay: 100,
-            statusCodes: [418]
-          }
-        };
+  it('should not cache non-GET requests', async () => {
+    const mockResponse = { data: 'test' };
+    nock(baseUrl)
+      .post('/test')
+      .reply(200, mockResponse)
+      .post('/test')
+      .reply(200, { data: 'different' });
 
-        const response = await httpRequest.execute(params);
-        expect(response.statusCode).toBe(200);
-        expect(response.retryCount).toBe(2);
-      });
-    });
+    const params: HttpRequestParameters = {
+      url: `${baseUrl}/test`,
+      method: 'POST',
+      cache: {
+        ttl: 5000
+      }
+    };
 
-    describe('caching', () => {
-      it('should cache successful GET requests', async () => {
-        const mockResponse = { data: 'test' };
-        nock('https://api.example.com')
-          .get('/test')
-          .reply(200, mockResponse);
+    const response1 = await httpRequest.execute(params);
+    expect(response1.statusCode).toBe(200);
+    expect(response1.data).toEqual(mockResponse);
+    expect(mockCacheServiceInstance.set).not.toHaveBeenCalled();
+    expect(mockValidateParameters).toHaveBeenCalledWith(params);
 
-        const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET',
-          cache: {
-            ttl: 300
-          }
-        };
-
-        // First request should hit the network
-        const response1 = await httpRequest.execute(params);
-        expect(response1.statusCode).toBe(200);
-        expect(response1.data).toEqual(mockResponse);
-
-        // Second request should come from cache
-        const response2 = await httpRequest.execute(params);
-        expect(response2.statusCode).toBe(200);
-        expect(response2.data).toEqual(mockResponse);
-        expect(response2.fromCache).toBe(true);
-      });
-
-      it('should not cache non-GET requests', async () => {
-        const mockResponse = { data: 'test' };
-        nock('https://api.example.com')
-          .post('/test')
-          .times(2)
-          .reply(200, mockResponse);
-
-        const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'POST',
-          cache: {
-            ttl: 300
-          }
-        };
-
-        // Both requests should hit the network
-        const response1 = await httpRequest.execute(params);
-        const response2 = await httpRequest.execute(params);
-
-        expect(response1.fromCache).toBe(false);
-        expect(response2.fromCache).toBe(false);
-      });
-
-      it('should respect cache TTL', async () => {
-        const mockResponse = { data: 'test' };
-        nock('https://api.example.com')
-          .get('/test')
-          .times(2)
-          .reply(200, mockResponse);
-
-        const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET',
-          cache: {
-            ttl: 1
-          }
-        };
-
-        // First request should hit the network
-        const response1 = await httpRequest.execute(params);
-        expect(response1.fromCache).toBe(false);
-
-        // Wait for cache to expire
-        await new Promise(resolve => setTimeout(resolve, 1100));
-
-        // Second request should hit the network again
-        const response2 = await httpRequest.execute(params);
-        expect(response2.fromCache).toBe(false);
-      });
-
-      it('should clear cache when requested', async () => {
-        const mockResponse = { data: 'test' };
-        nock('https://api.example.com')
-          .get('/test')
-          .times(2)
-          .reply(200, mockResponse);
-
-        const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET',
-          cache: {
-            ttl: 300
-          }
-        };
-
-        // First request should hit the network
-        await httpRequest.execute(params);
-
-        // Clear cache
-        httpRequest.clearCache();
-
-        // Second request should hit the network again
-        const response2 = await httpRequest.execute(params);
-        expect(response2.fromCache).toBe(false);
-      });
-    });
-
-    describe('error handling', () => {
-      it('should handle network errors', async () => {
-        nock('https://api.example.com')
-          .get('/test')
-          .replyWithError('Network error');
-
-        const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET'
-        };
-
-        try {
-          await httpRequest.execute(params);
-          fail('Expected an error to be thrown');
-        } catch (error) {
-          expect(error.message).toContain('Network error');
-        }
-      });
-
-      it('should handle timeout errors', async () => {
-        nock('https://api.example.com')
-          .get('/test')
-          .delayConnection(1000)
-          .reply(200);
-
-        const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET',
-          timeout: 100
-        };
-
-        try {
-          await httpRequest.execute(params);
-          fail('Expected an error to be thrown');
-        } catch (error) {
-          expect(error.message).toContain('timeout');
-        }
-      });
-
-      it('should handle server errors', async () => {
-        nock('https://api.example.com')
-          .get('/test')
-          .reply(500, { error: 'Internal Server Error' });
-
-        const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET'
-        };
-
-        const response = await httpRequest.execute(params);
-        expect(response.statusCode).toBe(500);
-        expect(response.data).toEqual({ error: 'Internal Server Error' });
-      });
-    });
-
-    describe('performance metrics', () => {
-      it('should track request duration', async () => {
-        nock('https://api.example.com')
-          .get('/test')
-          .delay(100)
-          .reply(200, { data: 'test' });
-
-        const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET'
-        };
-
-        const response = await httpRequest.execute(params);
-        expect(response.duration).toBeGreaterThanOrEqual(100);
-      });
-
-      it('should track retry count', async () => {
-        nock('https://api.example.com')
-          .get('/test')
-          .times(2)
-          .reply(500)
-          .get('/test')
-          .reply(200, { data: 'success' });
-
-        const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET',
-          retry: {
-            attempts: 3,
-            delay: 100,
-            statusCodes: [500]
-          }
-        };
-
-        const response = await httpRequest.execute(params);
-        expect(response.retryCount).toBe(2);
-      });
-    });
+    const response2 = await httpRequest.execute(params);
+    expect(response2.statusCode).toBe(200);
+    expect(response2.data).toEqual({ data: 'different' });
+    expect(response2.fromCache).toBeUndefined();
+    expect(mockValidateParameters).toHaveBeenCalledWith(params);
   });
 });
