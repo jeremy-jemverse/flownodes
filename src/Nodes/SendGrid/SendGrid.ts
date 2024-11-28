@@ -3,6 +3,7 @@ import { SendGridParameters, SendGridResponse } from './types';
 
 export class SendGrid {
   constructor() {
+    console.log('Environment variables:', process.env);
     if (!process.env.SENDGRID_API_KEY) {
       throw new Error('SendGrid API key not found in environment variables');
     }
