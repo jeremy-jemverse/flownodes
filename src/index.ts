@@ -1,5 +1,25 @@
+// Load environment variables first
 import * as dotenv from 'dotenv';
-dotenv.config();
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Configure dotenv with multiple paths
+const envPaths = [
+  resolve(process.cwd(), '.env'),
+  resolve(process.cwd(), '.env.local'),
+  resolve(process.cwd(), '.env.production'),
+];
+
+// Try loading from each path
+envPaths.forEach(path => {
+  config({ path });
+});
+
+// Log environment loading
+console.log('Node Environment:', process.env.NODE_ENV);
+console.log('API Key exists:', !!process.env.SENDGRID_API_KEY);
+
+// Rest of the imports
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import httpRequestRoutes from './Nodes/HttpRequest/routes';

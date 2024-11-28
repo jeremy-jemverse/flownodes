@@ -3,11 +3,19 @@ import { SendGridParameters, SendGridResponse } from './types';
 
 export class SendGrid {
   constructor() {
-    console.log('Environment variables:', process.env);
-    if (!process.env.SENDGRID_API_KEY) {
-      throw new Error('SendGrid API key not found in environment variables');
+    const apiKey = process.env.SENDGRID_API_KEY;
+    if (!apiKey) {
+      console.error('Environment variables available:', Object.keys(process.env));
+      throw new Error('SendGrid API key not found in environment variables. Please ensure SENDGRID_API_KEY is set in your environment.');
     }
-    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    
+    try {
+      sgMail.setApiKey(apiKey);
+      console.log('SendGrid API key configured successfully');
+    } catch (error) {
+      console.error('Error configuring SendGrid:', error);
+      throw new Error('Failed to configure SendGrid with provided API key');
+    }
   }
 
   public async execute(parameters: SendGridParameters): Promise<SendGridResponse> {
