@@ -3,12 +3,26 @@ import { SendGrid } from './SendGrid';
 import { SendGridParameters } from './types';
 
 const router = Router();
-const sendGrid = new SendGrid();
+let sendGridInstance: SendGrid | null = null;
+
+// Lazy initialization of SendGrid
+const getSendGrid = () => {
+  if (!sendGridInstance) {
+    try {
+      sendGridInstance = new SendGrid();
+    } catch (error) {
+      console.error('Failed to initialize SendGrid:', error);
+      throw error;
+    }
+  }
+  return sendGridInstance;
+};
 
 // Send email endpoint
 router.post('/send', async (req: Request, res: Response) => {
   try {
     const parameters = req.body as SendGridParameters;
+    const sendGrid = getSendGrid();
 
     try {
       // Validate parameters
