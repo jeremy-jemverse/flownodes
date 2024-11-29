@@ -1,4 +1,5 @@
 export interface SendGridParameters {
+  apiKey: string;  // Add API key parameter
   to: string | string[];
   from: string;
   subject: string;
@@ -13,4 +14,5 @@ export interface SendGridResponse {
   statusCode: number;
   message: string;
   response?: any;
+  error?: any;
 }

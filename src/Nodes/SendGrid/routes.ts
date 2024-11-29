@@ -1,44 +1,34 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
 import { SendGrid } from './SendGrid';
 import { SendGridParameters } from './types';
 
 const router = Router();
-let sendGridInstance: SendGrid | null = null;
-
-// Lazy initialization of SendGrid
-const getSendGrid = () => {
-  if (!sendGridInstance) {
-    try {
-      sendGridInstance = new SendGrid();
-    } catch (error) {
-      console.error('Failed to initialize SendGrid:', error);
-      throw error;
-    }
-  }
-  return sendGridInstance;
-};
+const sendGrid = new SendGrid();
 
 // Send email endpoint
-router.post('/send', async (req: Request, res: Response) => {
+router.post('/send', async (req, res) => {
   try {
     const parameters = req.body as SendGridParameters;
-    const sendGrid = getSendGrid();
 
     try {
       // Validate parameters
       sendGrid.validateParameters(parameters);
     } catch (error) {
       return res.status(400).json({
-        error: error instanceof Error ? error.message : 'Invalid parameters',
+        success: false,
+        statusCode: 400,
+        message: error instanceof Error ? error.message : 'Invalid parameters'
       });
     }
 
     const response = await sendGrid.execute(parameters);
-    res.status(response.success ? 200 : 500).json(response);
+    res.status(response.success ? 200 : response.statusCode || 500).json(response);
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('Error in /send endpoint:', error);
     res.status(500).json({
-      error: error instanceof Error ? error.message : 'Internal server error',
+      success: false,
+      statusCode: 500,
+      message: error instanceof Error ? error.message : 'Internal server error'
     });
   }
 });
