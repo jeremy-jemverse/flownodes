@@ -24,6 +24,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import httpRequestRoutes from './Nodes/HttpRequest/routes';
 import sendGridRoutes from './Nodes/SendGrid/routes';
+import postgresRoutes from './Nodes/Postgres/routes';
 
 const app = express();
 const PORT: number = process.env.PORT ? parseInt(process.env.PORT) : 4000;
@@ -49,6 +50,7 @@ app.get('/api/hello', (req: Request, res: Response) => {
 // Node routes
 app.use('/api/nodes/http-request', httpRequestRoutes);
 app.use('/api/nodes/sendgrid', sendGridRoutes);
+app.use('/api/nodes/postgres', postgresRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
