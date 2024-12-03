@@ -1,78 +1,94 @@
 import sgMail, { MailDataRequired } from '@sendgrid/mail';
-import { SendGridParameters, SendGridResponse } from './types';
+import { SendGridParameters, SendGridResponse, SendGridBodyParameters, SendGridTemplateParameters } from './types';
 
 export class SendGrid {
-  constructor() {
-    // Remove constructor initialization since we'll set the API key per request
-  }
-
   public async execute(parameters: SendGridParameters): Promise<SendGridResponse> {
     try {
       // Validate parameters before sending
       this.validateParameters(parameters);
 
       // Set API key for this request
-      try {
-        sgMail.setApiKey(parameters.apiKey);
-      } catch (error) {
-        console.error('Error configuring SendGrid with provided API key:', error);
-        return {
-          success: false,
-          statusCode: 401,
-          message: 'Invalid SendGrid API key',
-          error: error instanceof Error ? error.message : 'Unknown error'
-        };
-      }
+      sgMail.setApiKey(parameters.apiKey);
 
-      // Initialize email data
-      const msg: Partial<MailDataRequired> = {
+      // Construct the base email message
+      const msg = {
         to: parameters.to,
         from: parameters.from,
         subject: parameters.subject,
-        content: [{
-          type: 'text/plain',
-          value: parameters.text || ''
-        }]
-      };
+      } as MailDataRequired;
 
-      // Add optional HTML content
-      if (parameters.html) {
-        msg.content?.push({
-          type: 'text/html',
-          value: parameters.html
-        });
+      // Add content based on email type
+      if (parameters.type === 'template') {
+        this.addTemplateContent(msg, parameters);
+      } else {
+        this.addBodyContent(msg, parameters);
       }
 
-      // Add optional template
-      if (parameters.templateId) {
-        msg.templateId = parameters.templateId;
-        if (parameters.dynamicTemplateData) {
-          msg.dynamicTemplateData = parameters.dynamicTemplateData;
-        }
-      }
-
-      // Send email
-      const [response] = await sgMail.send(msg as MailDataRequired);
+      // Send email using SendGrid
+      const [response] = await sgMail.send(msg);
 
       return {
         success: true,
         statusCode: response.statusCode,
         message: 'Email sent successfully',
-        response: response
+        response: {
+          headers: response.headers,
+          body: response.body
+        }
       };
 
-    } catch (error: unknown) {
-      console.error('Error sending email:', error);
+    } catch (error) {
+      // Handle SendGrid specific errors
+      if (error && typeof error === 'object' && 'response' in error) {
+        const sgError = error as { code: string; response: { statusCode: number; body: any } };
+        return {
+          success: false,
+          statusCode: sgError.response?.statusCode || 500,
+          message: 'Failed to send email',
+          error: {
+            message: sgError.response?.body?.message || 'SendGrid API error',
+            code: sgError.code,
+            response: {
+              body: sgError.response?.body
+            }
+          }
+        };
+      }
+
+      // Handle other errors
       return {
         success: false,
-        statusCode: (error as any)?.code || 500,
+        statusCode: 500,
         message: 'Failed to send email',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: {
+          message: error instanceof Error ? error.message : 'Unknown error'
+        }
       };
     }
   }
 
+  private addTemplateContent(msg: MailDataRequired, parameters: SendGridTemplateParameters): void {
+    msg.templateId = parameters.templateId;
+    if (parameters.dynamicTemplateData) {
+      msg.dynamicTemplateData = parameters.dynamicTemplateData;
+    }
+  }
+
+  private addBodyContent(msg: MailDataRequired, parameters: SendGridBodyParameters): void {
+    if (!parameters.text && !parameters.html) {
+      throw new Error('Either text or HTML content is required for body-based emails');
+    }
+    
+    if (parameters.text) {
+      msg.text = parameters.text;
+    }
+    if (parameters.html) {
+      msg.html = parameters.html;
+    }
+  }
+
   public validateParameters(parameters: SendGridParameters): void {
+    // Validate common parameters
     if (!parameters.apiKey) {
       throw new Error('SendGrid API key is required');
     }
@@ -85,16 +101,16 @@ export class SendGrid {
     if (!parameters.subject) {
       throw new Error('Subject is required');
     }
-    if (!parameters.text && !parameters.html && !parameters.templateId) {
-      throw new Error('Either text, HTML content, or template ID is required');
-    }
-    if (parameters.templateId && !this.isValidTemplateId(parameters.templateId)) {
-      throw new Error('Invalid template ID format');
-    }
-  }
 
-  private isValidTemplateId(templateId: string): boolean {
-    // Add any template ID validation logic here
-    return typeof templateId === 'string' && templateId.length > 0;
+    // Type-specific validation
+    if (parameters.type === 'template') {
+      if (!parameters.templateId) {
+        throw new Error('Template ID is required for template-based emails');
+      }
+    } else if (parameters.type === 'body') {
+      if (!parameters.text && !parameters.html) {
+        throw new Error('Either text or HTML content is required for body-based emails');
+      }
+    }
   }
 }

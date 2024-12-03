@@ -4,6 +4,7 @@ node_modules/
 # Environment variables
 .env
 .env.local
+.env.old
 
 # IDE
 .vscode/
@@ -28,3 +29,6 @@ coverage/
 *.swp
 *.swo
 .tmp/
+
+# SendGrid test files with sensitive data
+src/Nodes/SendGrid/test-endpoint.ts

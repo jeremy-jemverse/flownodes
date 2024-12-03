@@ -3,7 +3,22 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-require("dotenv/config");
+const dotenv_1 = require("dotenv");
+const path_1 = require("path");
+// Configure dotenv with multiple paths
+const envPaths = [
+    (0, path_1.resolve)(process.cwd(), '.env'),
+    (0, path_1.resolve)(process.cwd(), '.env.local'),
+    (0, path_1.resolve)(process.cwd(), '.env.production'),
+];
+// Try loading from each path
+envPaths.forEach(path => {
+    (0, dotenv_1.config)({ path });
+});
+// Log environment loading
+console.log('Node Environment:', process.env.NODE_ENV);
+console.log('API Key exists:', !!process.env.SENDGRID_API_KEY);
+// Rest of the imports
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const routes_1 = __importDefault(require("./Nodes/HttpRequest/routes"));
