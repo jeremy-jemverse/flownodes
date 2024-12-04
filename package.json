@@ -14,6 +14,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:temporal": "bash ./scripts/run-temporal-test-server.sh && jest --testPathPattern=src/temporal/__tests__",
+    "test:temporal:watch": "bash ./scripts/run-temporal-test-server.sh && jest --watch --testPathPattern=src/temporal/__tests__",
     "dev": "nodemon --exec ts-node src/index.ts",
     "postinstall": "npm run build"
   },

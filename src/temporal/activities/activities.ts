@@ -25,7 +25,7 @@ export async function processPayment(orderId: string, amount: number): Promise<s
   // Simulate a long-running payment process with heartbeating
   for (let progress = 0; progress <= 100; progress += 20) {
     // Check for cancellation
-    if (context.cancelled) {
+    if (await context.cancelled) {
       throw new ApplicationFailure('Payment processing cancelled', 'CANCELLED');
     }
 
@@ -47,7 +47,7 @@ export async function updateInventory(productId: string, quantity: number): Prom
   
   // Simulate inventory update with heartbeating
   for (let progress = 0; progress <= 100; progress += 25) {
-    if (context.cancelled) {
+    if (await context.cancelled) {
       throw new ApplicationFailure('Inventory update cancelled', 'CANCELLED');
     }
 
@@ -67,7 +67,7 @@ export async function cancelPayment(orderId: string): Promise<string> {
   const context = Context.current();
   
   for (let progress = 0; progress <= 100; progress += 33) {
-    if (context.cancelled) {
+    if (await context.cancelled) {
       throw new ApplicationFailure('Payment cancellation interrupted', 'CANCELLED');
     }
 
@@ -82,7 +82,7 @@ export async function restoreInventory(productId: string, quantity: number): Pro
   const context = Context.current();
   
   for (let progress = 0; progress <= 100; progress += 33) {
-    if (context.cancelled) {
+    if (await context.cancelled) {
       throw new ApplicationFailure('Inventory restoration interrupted', 'CANCELLED');
     }
 
@@ -98,9 +98,6 @@ export async function sendNotification(userId: string, message: string): Promise
   context.heartbeat(0);
   
   // Simulate sending notification
-  await sleep(500);
-  context.heartbeat(50);
-  
   await sleep(500);
   context.heartbeat(100);
 }
