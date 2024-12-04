@@ -3,8 +3,8 @@ import { SearchAttributes } from '@temporalio/common';
 
 // Function to get or create a Temporal Client
 export async function getTemporalClient(address?: string) {
-  // Use environment variables with fallbacks
-  const defaultAddress = 'temporal-ui.eca-data.io:7233';
+  // Use IP address as it's more reliable
+  const defaultAddress = '35.159.193.134:7233';
   
   console.log('Connecting to Temporal server at:', address || process.env.TEMPORAL_SERVER_URL || defaultAddress);
   
