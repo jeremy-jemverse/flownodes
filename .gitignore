@@ -32,3 +32,4 @@ coverage/
 
 # SendGrid test files with sensitive data
 src/Nodes/SendGrid/test-endpoint.ts
+src/Nodes/SendGrid/test-curl.sh
