@@ -1,34 +1,41 @@
 import { Request, Response } from 'express';
-import router from '../routes';
-import { 
-  startWorkflow,
-  getWorkflowStatus,
-  cancelWorkflow,
-  signalWorkflow,
-  queryWorkflow,
-  searchWorkflows
-} from '../client';
+import { WorkflowClient } from '../client';
+import { temporalRouter } from '../routes';
 
-// Mock the client functions
 jest.mock('../client');
 
 describe('Temporal Routes', () => {
   let mockRequest: Partial<Request>;
   let mockResponse: Partial<Response>;
-  let mockJson: jest.Mock;
-  let mockStatus: jest.Mock;
+  let mockWorkflowClient: jest.Mocked<WorkflowClient>;
 
   beforeEach(() => {
-    mockJson = jest.fn();
-    mockStatus = jest.fn().mockReturnValue({ json: mockJson });
-    mockResponse = {
-      json: mockJson,
-      status: mockStatus,
+    mockRequest = {
+      body: {},
+      params: {},
+      query: {},
     };
+
+    mockResponse = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+    };
+
+    mockWorkflowClient = {
+      startWorkflow: jest.fn(),
+      getWorkflowHandle: jest.fn(),
+      listWorkflows: jest.fn(),
+      cancelWorkflow: jest.fn(),
+      signalWorkflow: jest.fn(),
+      queryWorkflow: jest.fn(),
+      searchWorkflows: jest.fn(),
+    } as unknown as jest.Mocked<WorkflowClient>;
+
+    (WorkflowClient as jest.Mock).mockImplementation(() => mockWorkflowClient);
   });
 
   describe('POST /workflow/start', () => {
-    it('should start workflow successfully', async () => {
+    it('should start a workflow successfully', async () => {
       const workflowId = 'test-workflow';
       const workflowType = 'TestWorkflow';
       const args = ['arg1', 'arg2'];
@@ -36,18 +43,19 @@ describe('Temporal Routes', () => {
       const memo = { key: 'value' };
       const buildId = '1.0.0';
 
-      mockRequest = {
-        body: { workflowId, workflowType, args, searchAttributes, memo, buildId },
-      };
+      mockRequest.body = { workflowId, workflowType, args, searchAttributes, memo, buildId };
 
-      (startWorkflow as jest.Mock).mockResolvedValue({
+      mockWorkflowClient.startWorkflow.mockResolvedValue({
         workflowId,
         runId: 'test-run',
       });
 
-      await router.handle(mockRequest as Request, mockResponse as Response);
+      await temporalRouter.routes.find(r => r.path === '/workflow/start')?.handler(
+        mockRequest as Request,
+        mockResponse as Response
+      );
 
-      expect(startWorkflow).toHaveBeenCalledWith(
+      expect(mockWorkflowClient.startWorkflow).toHaveBeenCalledWith(
         workflowId,
         workflowType,
         args,
@@ -58,7 +66,8 @@ describe('Temporal Routes', () => {
         })
       );
 
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
         workflowId,
         runId: 'test-run',
@@ -66,36 +75,33 @@ describe('Temporal Routes', () => {
     });
 
     it('should handle missing required parameters', async () => {
-      mockRequest = {
-        body: {},
-      };
+      mockRequest.body = {};
 
-      await router.handle(mockRequest as Request, mockResponse as Response);
+      await temporalRouter.routes.find(r => r.path === '/workflow/start')?.handler(
+        mockRequest as Request,
+        mockResponse as Response
+      );
 
-      expect(mockStatus).toHaveBeenCalledWith(400);
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.json).toHaveBeenCalledWith({
         success: false,
         message: 'workflowId and workflowType are required',
       });
     });
 
     it('should handle workflow start errors', async () => {
-      mockRequest = {
-        body: {
-          workflowId: 'test',
-          workflowType: 'Test',
-        },
-      };
+      const error = new Error('Failed to start workflow');
+      mockWorkflowClient.startWorkflow.mockRejectedValue(error);
 
-      const error = new Error('Start failed');
-      (startWorkflow as jest.Mock).mockRejectedValue(error);
+      await temporalRouter.routes.find(r => r.path === '/workflow/start')?.handler(
+        mockRequest as Request,
+        mockResponse as Response
+      );
 
-      await router.handle(mockRequest as Request, mockResponse as Response);
-
-      expect(mockStatus).toHaveBeenCalledWith(500);
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Start failed',
+        message: 'Failed to start workflow',
       });
     });
   });
@@ -103,37 +109,43 @@ describe('Temporal Routes', () => {
   describe('GET /workflow/:workflowId', () => {
     it('should get workflow status successfully', async () => {
       const workflowId = 'test-workflow';
-      const mockStatus = { status: 'RUNNING' };
+      const runId = 'test-run';
+      mockRequest.params = { workflowId };
+      mockRequest.query = { runId };
 
-      mockRequest = {
-        params: { workflowId },
+      const mockHandle = {
+        workflowId,
+        runId,
+        status: jest.fn().mockResolvedValue('RUNNING'),
       };
 
-      (getWorkflowStatus as jest.Mock).mockResolvedValue(mockStatus);
+      mockWorkflowClient.getWorkflowHandle.mockResolvedValue(mockHandle);
 
-      await router.handle(mockRequest as Request, mockResponse as Response);
+      await temporalRouter.routes.find(r => r.path === '/workflow/:workflowId')?.handler(
+        mockRequest as Request,
+        mockResponse as Response
+      );
 
-      expect(getWorkflowStatus).toHaveBeenCalledWith(workflowId);
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
-        status: mockStatus,
+        status: 'RUNNING',
       });
     });
 
     it('should handle workflow status errors', async () => {
-      mockRequest = {
-        params: { workflowId: 'test' },
-      };
+      const error = new Error('Failed to get workflow status');
+      mockWorkflowClient.getWorkflowHandle.mockRejectedValue(error);
 
-      const error = new Error('Status check failed');
-      (getWorkflowStatus as jest.Mock).mockRejectedValue(error);
+      await temporalRouter.routes.find(r => r.path === '/workflow/:workflowId')?.handler(
+        mockRequest as Request,
+        mockResponse as Response
+      );
 
-      await router.handle(mockRequest as Request, mockResponse as Response);
-
-      expect(mockStatus).toHaveBeenCalledWith(500);
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Status check failed',
+        message: 'Failed to get workflow status',
       });
     });
   });
@@ -141,34 +153,34 @@ describe('Temporal Routes', () => {
   describe('POST /workflow/:workflowId/cancel', () => {
     it('should cancel workflow successfully', async () => {
       const workflowId = 'test-workflow';
+      mockRequest.params = { workflowId };
 
-      mockRequest = {
-        params: { workflowId },
-      };
+      await temporalRouter.routes.find(r => r.path === '/workflow/:workflowId/cancel')?.handler(
+        mockRequest as Request,
+        mockResponse as Response
+      );
 
-      await router.handle(mockRequest as Request, mockResponse as Response);
-
-      expect(cancelWorkflow).toHaveBeenCalledWith(workflowId);
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(mockWorkflowClient.cancelWorkflow).toHaveBeenCalledWith(workflowId);
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith({
         success: true,
         message: 'Workflow cancelled successfully',
       });
     });
 
     it('should handle cancellation errors', async () => {
-      mockRequest = {
-        params: { workflowId: 'test' },
-      };
+      const error = new Error('Failed to cancel workflow');
+      mockWorkflowClient.cancelWorkflow.mockRejectedValue(error);
 
-      const error = new Error('Cancellation failed');
-      (cancelWorkflow as jest.Mock).mockRejectedValue(error);
+      await temporalRouter.routes.find(r => r.path === '/workflow/:workflowId/cancel')?.handler(
+        mockRequest as Request,
+        mockResponse as Response
+      );
 
-      await router.handle(mockRequest as Request, mockResponse as Response);
-
-      expect(mockStatus).toHaveBeenCalledWith(500);
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Cancellation failed',
+        message: 'Failed to cancel workflow',
       });
     });
   });
@@ -178,36 +190,35 @@ describe('Temporal Routes', () => {
       const workflowId = 'test-workflow';
       const signalName = 'testSignal';
       const args = { data: 'test' };
-
-      mockRequest = {
-        params: { workflowId, signalName },
-        body: args,
-      };
+      mockRequest.params = { workflowId, signalName };
+      mockRequest.body = args;
 
       const mockResult = { success: true };
-      (signalWorkflow as jest.Mock).mockResolvedValue(mockResult);
+      mockWorkflowClient.signalWorkflow.mockResolvedValue(mockResult);
 
-      await router.handle(mockRequest as Request, mockResponse as Response);
+      await temporalRouter.routes.find(r => r.path === '/workflow/:workflowId/signal/:signalName')?.handler(
+        mockRequest as Request,
+        mockResponse as Response
+      );
 
-      expect(signalWorkflow).toHaveBeenCalledWith(workflowId, signalName, [args]);
-      expect(mockJson).toHaveBeenCalledWith(mockResult);
+      expect(mockWorkflowClient.signalWorkflow).toHaveBeenCalledWith(workflowId, signalName, [args]);
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith(mockResult);
     });
 
     it('should handle signal errors', async () => {
-      mockRequest = {
-        params: { workflowId: 'test', signalName: 'test' },
-        body: {},
-      };
+      const error = new Error('Failed to send signal');
+      mockWorkflowClient.signalWorkflow.mockRejectedValue(error);
 
-      const error = new Error('Signal failed');
-      (signalWorkflow as jest.Mock).mockRejectedValue(error);
+      await temporalRouter.routes.find(r => r.path === '/workflow/:workflowId/signal/:signalName')?.handler(
+        mockRequest as Request,
+        mockResponse as Response
+      );
 
-      await router.handle(mockRequest as Request, mockResponse as Response);
-
-      expect(mockStatus).toHaveBeenCalledWith(500);
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Signal failed',
+        message: 'Failed to send signal',
       });
     });
   });
@@ -217,36 +228,35 @@ describe('Temporal Routes', () => {
       const workflowId = 'test-workflow';
       const queryName = 'testQuery';
       const args = { data: 'test' };
-
-      mockRequest = {
-        params: { workflowId, queryName },
-        body: args,
-      };
+      mockRequest.params = { workflowId, queryName };
+      mockRequest.body = args;
 
       const mockResult = { status: 'RUNNING' };
-      (queryWorkflow as jest.Mock).mockResolvedValue(mockResult);
+      mockWorkflowClient.queryWorkflow.mockResolvedValue(mockResult);
 
-      await router.handle(mockRequest as Request, mockResponse as Response);
+      await temporalRouter.routes.find(r => r.path === '/workflow/:workflowId/query/:queryName')?.handler(
+        mockRequest as Request,
+        mockResponse as Response
+      );
 
-      expect(queryWorkflow).toHaveBeenCalledWith(workflowId, queryName, [args]);
-      expect(mockJson).toHaveBeenCalledWith(mockResult);
+      expect(mockWorkflowClient.queryWorkflow).toHaveBeenCalledWith(workflowId, queryName, [args]);
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith(mockResult);
     });
 
     it('should handle query errors', async () => {
-      mockRequest = {
-        params: { workflowId: 'test', queryName: 'test' },
-        body: {},
-      };
+      const error = new Error('Failed to query workflow');
+      mockWorkflowClient.queryWorkflow.mockRejectedValue(error);
 
-      const error = new Error('Query failed');
-      (queryWorkflow as jest.Mock).mockRejectedValue(error);
+      await temporalRouter.routes.find(r => r.path === '/workflow/:workflowId/query/:queryName')?.handler(
+        mockRequest as Request,
+        mockResponse as Response
+      );
 
-      await router.handle(mockRequest as Request, mockResponse as Response);
-
-      expect(mockStatus).toHaveBeenCalledWith(500);
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Query failed',
+        message: 'Failed to query workflow',
       });
     });
   });
@@ -254,48 +264,49 @@ describe('Temporal Routes', () => {
   describe('GET /workflows/search', () => {
     it('should search workflows successfully', async () => {
       const query = 'test query';
-
-      mockRequest = {
-        query: { query },
-      };
+      mockRequest.query = { query };
 
       const mockResults = [{ workflowId: 'test' }];
-      (searchWorkflows as jest.Mock).mockResolvedValue(mockResults);
+      mockWorkflowClient.searchWorkflows.mockResolvedValue(mockResults);
 
-      await router.handle(mockRequest as Request, mockResponse as Response);
+      await temporalRouter.routes.find(r => r.path === '/workflows/search')?.handler(
+        mockRequest as Request,
+        mockResponse as Response
+      );
 
-      expect(searchWorkflows).toHaveBeenCalledWith(query);
-      expect(mockJson).toHaveBeenCalledWith(mockResults);
+      expect(mockWorkflowClient.searchWorkflows).toHaveBeenCalledWith(query);
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+      expect(mockResponse.json).toHaveBeenCalledWith(mockResults);
     });
 
     it('should handle missing query parameter', async () => {
-      mockRequest = {
-        query: {},
-      };
+      mockRequest.query = {};
 
-      await router.handle(mockRequest as Request, mockResponse as Response);
+      await temporalRouter.routes.find(r => r.path === '/workflows/search')?.handler(
+        mockRequest as Request,
+        mockResponse as Response
+      );
 
-      expect(mockStatus).toHaveBeenCalledWith(400);
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+      expect(mockResponse.json).toHaveBeenCalledWith({
         success: false,
         message: 'Query parameter is required',
       });
     });
 
     it('should handle search errors', async () => {
-      mockRequest = {
-        query: { query: 'test' },
-      };
+      const error = new Error('Failed to search workflows');
+      mockWorkflowClient.searchWorkflows.mockRejectedValue(error);
 
-      const error = new Error('Search failed');
-      (searchWorkflows as jest.Mock).mockRejectedValue(error);
+      await temporalRouter.routes.find(r => r.path === '/workflows/search')?.handler(
+        mockRequest as Request,
+        mockResponse as Response
+      );
 
-      await router.handle(mockRequest as Request, mockResponse as Response);
-
-      expect(mockStatus).toHaveBeenCalledWith(500);
-      expect(mockJson).toHaveBeenCalledWith({
+      expect(mockResponse.status).toHaveBeenCalledWith(500);
+      expect(mockResponse.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Search failed',
+        message: 'Failed to search workflows',
       });
     });
   });

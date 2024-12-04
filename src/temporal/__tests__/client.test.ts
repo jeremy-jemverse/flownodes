@@ -45,6 +45,10 @@ describe('Temporal Client', () => {
     (Client as unknown as jest.Mock).mockImplementation(() => mockClient);
   });
 
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
   describe('startWorkflow', () => {
     it('should start workflow with correct parameters', async () => {
       const workflowId = 'test-workflow';
@@ -193,8 +197,9 @@ describe('Temporal Client', () => {
     });
 
     it('should handle search errors', async () => {
+      const error = new Error('Search failed');
       mockClient.workflow.list.mockImplementation(() => {
-        throw new Error('Search failed');
+        throw error;
       });
 
       await expect(searchWorkflows('test'))

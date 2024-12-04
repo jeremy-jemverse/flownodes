@@ -8,15 +8,36 @@ describe('Temporal Activities', () => {
 
   beforeEach(() => {
     mockEnv = new MockActivityEnvironment();
+    jest.spyOn(Context, 'current').mockReturnValue({
+      info: {
+        activityId: 'test-activity',
+        activityType: 'test',
+        attempt: 1,
+        isLocal: false,
+        scheduleToCloseTimeout: '1 minute',
+        scheduleToStartTimeout: '1 minute',
+        startToCloseTimeout: '1 minute',
+        heartbeatTimeout: '1 minute',
+        taskQueue: 'test-queue',
+        workflowExecution: { workflowId: 'test', runId: 'test' },
+        workflowType: 'test',
+      },
+      cancelled: Promise.resolve(false),
+      cancellationSignal: new AbortController().signal,
+      heartbeat: jest.fn(),
+      log: console,
+      metadata: new Map(),
+    });
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
   describe('processPayment', () => {
     it('should process payment successfully', async () => {
       const orderId = 'test-order-123';
       const amount = 100;
-
-      // Mock the Context.current() to return our mock environment
-      jest.spyOn(Context, 'current').mockReturnValue(mockEnv);
 
       const result = await activities.processPayment(orderId, amount);
       expect(result).toBe(`Payment processed for order ${orderId}`);
@@ -39,8 +60,8 @@ describe('Temporal Activities', () => {
 
       // Mock cancellation
       jest.spyOn(Context, 'current').mockReturnValue({
-        ...mockEnv,
-        cancelled: true,
+        ...Context.current,
+        cancelled: Promise.resolve(true),
       });
 
       await expect(activities.processPayment(orderId, amount))
@@ -90,8 +111,8 @@ describe('Temporal Activities', () => {
 
       // Mock cancellation
       jest.spyOn(Context, 'current').mockReturnValue({
-        ...mockEnv,
-        cancelled: true,
+        ...Context.current,
+        cancelled: Promise.resolve(true),
       });
 
       await expect(activities.updateInventory(productId, quantity))
