@@ -3,7 +3,7 @@ import { getTemporalClient } from './client';
 async function testConnection() {
     try {
         console.log('Attempting to connect to cloud Temporal server...');
-        const cloudAddress = '35.159.193.134:7233';
+        const cloudAddress = 'temporal-ui.eca-data.io:7233';
         const client = await getTemporalClient(cloudAddress);
         console.log('Successfully connected to Temporal server at:', cloudAddress);
         
