@@ -2,8 +2,14 @@ import { Client, Connection, WorkflowClient } from '@temporalio/client';
 import { SearchAttributes } from '@temporalio/common';
 
 // Function to get or create a Temporal Client
-export async function getTemporalClient() {
-  const connection = await Connection.connect();
+export async function getTemporalClient(address?: string) {
+  // Try connecting to the gRPC endpoint using IP
+  const defaultAddress = '35.159.193.134:7233';
+  
+  const connection = await Connection.connect({
+    address: address || process.env.TEMPORAL_SERVER_URL || defaultAddress,
+    tls: false
+  });
   return new TemporalClient(connection);
 }
 
