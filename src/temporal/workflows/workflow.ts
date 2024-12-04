@@ -13,6 +13,7 @@ import {
   ParentClosePolicy,
   condition,
   CancellationScope,
+  SearchAttributeValue,
 } from '@temporalio/workflow';
 import type * as activities from '../activities/activities';
 
@@ -89,9 +90,9 @@ export async function orderWorkflow(
   items: Array<{ productId: string; quantity: number }>,
   totalAmount: number
 ): Promise<string> {
-  const searchAttributes: SearchAttributes = {
-    CustomStringField: orderId,
-    CustomKeywordField: 'order_processing',
+  const searchAttributes: Partial<SearchAttributes> = {
+    CustomStringField: [orderId] as SearchAttributeValue,
+    CustomKeywordField: ['order_processing'] as SearchAttributeValue,
   };
   Object.assign(workflowInfo().searchAttributes, searchAttributes);
 
@@ -180,7 +181,7 @@ export async function orderWorkflow(
 
 // Versioned workflow example
 export async function versionedWorkflow(name: string): Promise<string> {
-  const version = workflowInfo().buildId || '1.0';
+  const version = '1.0'; // Default to 1.0 since buildId is not available
   
   if (version === '1.0') {
     return `Hello ${name} from version 1.0!`;
