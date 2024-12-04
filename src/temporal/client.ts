@@ -1,27 +1,74 @@
-import { Client, Connection } from '@temporalio/client';
+import { Client, Connection, WorkflowClient } from '@temporalio/client';
+import { SearchAttributes } from '@temporalio/common';
 
 // Function to get or create a Temporal Client
 export async function getTemporalClient() {
   const connection = await Connection.connect();
-  return new Client({
-    connection,
-    namespace: 'default',
-  });
+  return new TemporalClient(connection);
 }
 
-interface SearchAttributes {
-  CustomStringField?: string | string[];
-  CustomKeywordField?: string | string[];
-  [key: string]: any;
-}
+class TemporalClient {
+  private client: WorkflowClient;
 
-interface StartWorkflowOptions {
-  taskQueue?: string;
-  searchAttributes?: SearchAttributes;
-  memo?: {
-    [key: string]: any;
-  };
-  version?: string;
+  constructor(connection: Connection) {
+    this.client = new WorkflowClient({
+      connection,
+    });
+  }
+
+  async startWorkflow<T>(
+    workflowId: string,
+    workflowType: string,
+    args: any[],
+    options: {
+      taskQueue?: string;
+      searchAttributes?: Partial<SearchAttributes>;
+      memo?: Record<string, any>;
+      version?: string;
+    } = {}
+  ) {
+    const { taskQueue = 'default', searchAttributes, memo, version } = options;
+
+    return await this.client.workflow.start(workflowType, {
+      args,
+      workflowId,
+      taskQueue,
+      searchAttributes: searchAttributes as SearchAttributes,
+      memo,
+      ...(version ? { version } : {}),
+    });
+  }
+
+  async getWorkflowHandle(workflowId: string, runId?: string) {
+    return this.client.workflow.getHandle(workflowId, runId);
+  }
+
+  async cancelWorkflow(workflowId: string, runId?: string) {
+    const handle = await this.getWorkflowHandle(workflowId, runId);
+    await handle.cancel();
+    return true;
+  }
+
+  async signalWorkflow(workflowId: string, signalName: string, args: any[]) {
+    const handle = await this.getWorkflowHandle(workflowId);
+    await handle.signal(signalName, ...args);
+    return true;
+  }
+
+  async queryWorkflow(workflowId: string, queryType: string, args: any[]) {
+    const handle = await this.getWorkflowHandle(workflowId);
+    return await handle.query(queryType, ...args);
+  }
+
+  async searchWorkflows(query: string) {
+    const result = [];
+    for await (const workflow of this.client.workflow.list({
+      query,
+    })) {
+      result.push(workflow);
+    }
+    return result;
+  }
 }
 
 // Function to start a workflow
@@ -29,38 +76,21 @@ export async function startWorkflow(
   workflowId: string,
   workflowType: string,
   args: any[] = [],
-  options?: StartWorkflowOptions
+  options?: {
+    taskQueue?: string;
+    searchAttributes?: Partial<SearchAttributes>;
+    memo?: Record<string, any>;
+    version?: string;
+  }
 ) {
   const client = await getTemporalClient();
-  
-  // Format search attributes
-  const searchAttributes = options?.searchAttributes ? {
-    CustomStringField: Array.isArray(options.searchAttributes.CustomStringField) 
-      ? options.searchAttributes.CustomStringField 
-      : [options.searchAttributes.CustomStringField],
-    CustomKeywordField: Array.isArray(options.searchAttributes.CustomKeywordField)
-      ? options.searchAttributes.CustomKeywordField
-      : [options.searchAttributes.CustomKeywordField]
-  } : undefined;
-  
-  const handle = await client.workflow.start(workflowType, {
-    taskQueue: options?.taskQueue || 'flownodes-queue',
-    workflowId,
-    args,
-    searchAttributes,
-    memo: options?.memo,
-    ...(options?.version ? { 
-      buildId: options.version 
-    } : {}),
-  });
-
-  return handle;
+  return await client.startWorkflow(workflowId, workflowType, args, options);
 }
 
 // Function to get workflow status
 export async function getWorkflowStatus(workflowId: string) {
   const client = await getTemporalClient();
-  const handle = client.workflow.getHandle(workflowId);
+  const handle = await client.getWorkflowHandle(workflowId);
   
   try {
     const status = await handle.describe();
@@ -74,62 +104,23 @@ export async function getWorkflowStatus(workflowId: string) {
 // Function to cancel a workflow
 export async function cancelWorkflow(workflowId: string) {
   const client = await getTemporalClient();
-  const handle = client.workflow.getHandle(workflowId);
-  
-  try {
-    await handle.cancel();
-    return { success: true, message: 'Workflow cancelled successfully' };
-  } catch (error) {
-    console.error(`Error cancelling workflow: ${error}`);
-    throw error;
-  }
+  return await client.cancelWorkflow(workflowId);
 }
 
 // Function to send a signal to a workflow
 export async function signalWorkflow(workflowId: string, signalName: string, args: any[]) {
   const client = await getTemporalClient();
-  const handle = client.workflow.getHandle(workflowId);
-  
-  try {
-    await handle.signal(signalName, ...args);
-    return { success: true, message: 'Signal sent successfully' };
-  } catch (error) {
-    console.error(`Error sending signal to workflow: ${error}`);
-    throw error;
-  }
+  return await client.signalWorkflow(workflowId, signalName, args);
 }
 
 // Function to query a workflow
 export async function queryWorkflow(workflowId: string, queryName: string, args: any[]) {
   const client = await getTemporalClient();
-  const handle = client.workflow.getHandle(workflowId);
-  
-  try {
-    const result = await handle.query(queryName, ...args);
-    return { success: true, result };
-  } catch (error) {
-    console.error(`Error querying workflow: ${error}`);
-    throw error;
-  }
+  return await client.queryWorkflow(workflowId, queryName, args);
 }
 
 // Function to search workflows
 export async function searchWorkflows(query: string) {
   const client = await getTemporalClient();
-  
-  try {
-    const workflows = await client.workflow.list({
-      query,
-    });
-    
-    const results = [];
-    for await (const workflow of workflows) {
-      results.push(workflow);
-    }
-    
-    return { success: true, results };
-  } catch (error) {
-    console.error(`Error searching workflows: ${error}`);
-    throw error;
-  }
+  return await client.searchWorkflows(query);
 }

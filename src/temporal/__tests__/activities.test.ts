@@ -1,14 +1,14 @@
-import { MockActivityEnvironment } from '@temporalio/testing';
-import { Context } from '@temporalio/activity';
+import { MockActivityEnvironment, Context } from '@temporalio/testing';
 import * as activities from '../activities/activities';
 import { PaymentError, InventoryError } from '../activities/activities';
 
 describe('Temporal Activities', () => {
   let mockEnv: MockActivityEnvironment;
+  let context: Context;
 
   beforeEach(() => {
     mockEnv = new MockActivityEnvironment();
-    jest.spyOn(Context, 'current').mockReturnValue({
+    context = {
       info: {
         activityId: 'test-activity',
         activityType: 'test',
@@ -22,12 +22,12 @@ describe('Temporal Activities', () => {
         workflowExecution: { workflowId: 'test', runId: 'test' },
         workflowType: 'test',
       },
-      cancelled: Promise.resolve(false),
+      cancelled: false,
       cancellationSignal: new AbortController().signal,
       heartbeat: jest.fn(),
       log: console,
       metadata: new Map(),
-    });
+    };
   });
 
   afterEach(() => {
@@ -39,7 +39,7 @@ describe('Temporal Activities', () => {
       const orderId = 'test-order-123';
       const amount = 100;
 
-      const result = await activities.processPayment(orderId, amount);
+      const result = await activities.processPayment.call(context, orderId, amount);
       expect(result).toBe(`Payment processed for order ${orderId}`);
     });
 
@@ -50,7 +50,7 @@ describe('Temporal Activities', () => {
       const heartbeatSpy = jest.spyOn(mockEnv, 'heartbeat');
       jest.spyOn(Context, 'current').mockReturnValue(mockEnv);
 
-      await activities.processPayment(orderId, amount);
+      await activities.processPayment.call(context, orderId, amount);
       expect(heartbeatSpy).toHaveBeenCalledTimes(5); // 0%, 20%, 40%, 60%, 80%, 100%
     });
 
@@ -58,13 +58,12 @@ describe('Temporal Activities', () => {
       const orderId = 'test-order-123';
       const amount = 100;
 
-      // Mock cancellation
-      jest.spyOn(Context, 'current').mockReturnValue({
-        ...Context.current,
-        cancelled: Promise.resolve(true),
-      });
+      const cancelledContext = {
+        ...context,
+        cancelled: true,
+      };
 
-      await expect(activities.processPayment(orderId, amount))
+      await expect(activities.processPayment.call(cancelledContext, orderId, amount))
         .rejects
         .toThrow('Payment processing cancelled');
     });
@@ -77,7 +76,7 @@ describe('Temporal Activities', () => {
       jest.spyOn(Math, 'random').mockReturnValue(0.1);
       jest.spyOn(Context, 'current').mockReturnValue(mockEnv);
 
-      await expect(activities.processPayment(orderId, amount))
+      await expect(activities.processPayment.call(context, orderId, amount))
         .rejects
         .toThrow(PaymentError);
     });
@@ -90,7 +89,7 @@ describe('Temporal Activities', () => {
 
       jest.spyOn(Context, 'current').mockReturnValue(mockEnv);
 
-      const result = await activities.updateInventory(productId, quantity);
+      const result = await activities.updateInventory.call(context, productId, quantity);
       expect(result).toBe(`Inventory updated for product ${productId}`);
     });
 
@@ -101,7 +100,7 @@ describe('Temporal Activities', () => {
       const heartbeatSpy = jest.spyOn(mockEnv, 'heartbeat');
       jest.spyOn(Context, 'current').mockReturnValue(mockEnv);
 
-      await activities.updateInventory(productId, quantity);
+      await activities.updateInventory.call(context, productId, quantity);
       expect(heartbeatSpy).toHaveBeenCalledTimes(4); // 0%, 25%, 50%, 75%, 100%
     });
 
@@ -109,13 +108,12 @@ describe('Temporal Activities', () => {
       const productId = 'test-product-123';
       const quantity = 5;
 
-      // Mock cancellation
-      jest.spyOn(Context, 'current').mockReturnValue({
-        ...Context.current,
-        cancelled: Promise.resolve(true),
-      });
+      const cancelledContext = {
+        ...context,
+        cancelled: true,
+      };
 
-      await expect(activities.updateInventory(productId, quantity))
+      await expect(activities.updateInventory.call(cancelledContext, productId, quantity))
         .rejects
         .toThrow('Inventory update cancelled');
     });
@@ -128,7 +126,7 @@ describe('Temporal Activities', () => {
       jest.spyOn(Math, 'random').mockReturnValue(0.1);
       jest.spyOn(Context, 'current').mockReturnValue(mockEnv);
 
-      await expect(activities.updateInventory(productId, quantity))
+      await expect(activities.updateInventory.call(context, productId, quantity))
         .rejects
         .toThrow(InventoryError);
     });
@@ -140,7 +138,7 @@ describe('Temporal Activities', () => {
       
       jest.spyOn(Context, 'current').mockReturnValue(mockEnv);
 
-      const result = await activities.cancelPayment(orderId);
+      const result = await activities.cancelPayment.call(context, orderId);
       expect(result).toBe(`Payment cancelled for order ${orderId}`);
     });
 
@@ -151,7 +149,7 @@ describe('Temporal Activities', () => {
       jest.spyOn(Math, 'random').mockReturnValue(0.1);
       jest.spyOn(Context, 'current').mockReturnValue(mockEnv);
 
-      await expect(activities.cancelPayment(orderId))
+      await expect(activities.cancelPayment.call(context, orderId))
         .rejects
         .toThrow(PaymentError);
     });
@@ -164,7 +162,7 @@ describe('Temporal Activities', () => {
 
       jest.spyOn(Context, 'current').mockReturnValue(mockEnv);
 
-      await activities.sendNotification(userId, message);
+      await activities.sendNotification.call(context, userId, message);
       // Since this is void, we just verify it doesn't throw
     });
 
@@ -176,7 +174,7 @@ describe('Temporal Activities', () => {
       jest.spyOn(Math, 'random').mockReturnValue(0.1);
       jest.spyOn(Context, 'current').mockReturnValue(mockEnv);
 
-      await expect(activities.sendNotification(userId, message))
+      await expect(activities.sendNotification.call(context, userId, message))
         .rejects
         .toThrow('Failed to send notification');
     });
