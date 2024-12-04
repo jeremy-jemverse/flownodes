@@ -68,18 +68,23 @@ async function startTemporalWorker() {
     console.log('Temporal worker started successfully');
   } catch (error) {
     console.error('Failed to start Temporal worker:', error);
-    process.exit(1);
+    // Don't exit process on worker error in production
+    if (process.env.NODE_ENV !== 'production') {
+      process.exit(1);
+    }
   }
 }
 
 // Start server and worker
 async function start() {
   try {
-    await startTemporalWorker();
-    
-    app.listen(PORT, () => {
+    // Start the server first to bind the port
+    const server = app.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);
     });
+
+    // Start the Temporal worker after the server is running
+    await startTemporalWorker();
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
