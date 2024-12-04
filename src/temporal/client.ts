@@ -29,7 +29,7 @@ class TemporalClient {
   ) {
     const { taskQueue = 'default', searchAttributes, memo, version } = options;
 
-    return await this.client.workflow.start(workflowType, {
+    return await this.client.start(workflowType, {
       args,
       workflowId,
       taskQueue,
@@ -40,7 +40,7 @@ class TemporalClient {
   }
 
   async getWorkflowHandle(workflowId: string, runId?: string) {
-    return this.client.workflow.getHandle(workflowId, runId);
+    return this.client.getHandle(workflowId, runId);
   }
 
   async cancelWorkflow(workflowId: string, runId?: string) {
@@ -62,7 +62,7 @@ class TemporalClient {
 
   async searchWorkflows(query: string) {
     const result = [];
-    for await (const workflow of this.client.workflow.list({
+    for await (const workflow of this.client.list({
       query,
     })) {
       result.push(workflow);
