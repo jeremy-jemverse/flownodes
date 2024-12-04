@@ -48,8 +48,12 @@ app.use('/api/nodes/postgres', postgresRoutes);
 // Start Temporal worker
 async function startTemporalWorker() {
   try {
+    const defaultAddress = '35.159.193.134:7233';
+    console.log('Connecting worker to Temporal server at:', process.env.TEMPORAL_ADDRESS || defaultAddress);
+    
     const connection = await NativeConnection.connect({
-      address: process.env.TEMPORAL_ADDRESS || 'localhost:7233'
+      address: process.env.TEMPORAL_ADDRESS || defaultAddress,
+      tls: false
     });
 
     const worker = await Worker.create({
