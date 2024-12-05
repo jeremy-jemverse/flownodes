@@ -130,4 +130,42 @@ router.get('/workflows/search', async (req: Request, res: Response) => {
   }
 });
 
+// Save workflow schema and start workflow
+router.post('/workflow/save', async (req: Request, res: Response) => {
+  try {
+    const workflowSchema = req.body;
+    
+    if (!workflowSchema) {
+      return res.status(400).json({
+        success: false,
+        message: 'Workflow schema is required'
+      });
+    }
+
+    // Extract workflowId from schema or generate one if not present
+    const workflowId = workflowSchema.workflowId || `workflow-${Date.now()}`;
+    
+    // Start the workflow with the schema as args
+    const handle = await startWorkflow(workflowId, 'processWorkflow', [workflowSchema], {
+      memo: {
+        schemaVersion: '1.0',
+        createdAt: new Date().toISOString()
+      }
+    });
+    
+    res.json({
+      success: true,
+      workflowId: handle.workflowId,
+      runId: handle.firstExecutionRunId,
+      schema: workflowSchema
+    });
+  } catch (error) {
+    console.error('Error saving workflow:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    });
+  }
+});
+
 export default router;

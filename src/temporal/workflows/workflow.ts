@@ -216,3 +216,13 @@ export async function statefulExample(initialMessage: string): Promise<string> {
 export async function example(name: string): Promise<string> {
   return await baseActivities.greet(name);
 }
+
+// Workflow schema processor
+export async function processWorkflow(schema: any): Promise<void> {
+  console.log('Processing workflow with schema:', schema);
+  
+  // Here you can implement the logic to process the workflow schema
+  // For now, we'll just log it and complete successfully
+  
+  return;
+}
