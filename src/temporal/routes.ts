@@ -143,7 +143,7 @@ router.post('/workflow/save', async (req: Request, res: Response) => {
     }
 
     // Extract workflowId from schema or generate one if not present
-    const workflowId = workflowSchema.id || `workflow-${Date.now()}`;
+    const workflowId = workflowSchema.id?.toString() || `workflow-${Date.now()}`;
     console.log('workflow:Id : ', workflowId);
     
     // Start the workflow with the schema as args
