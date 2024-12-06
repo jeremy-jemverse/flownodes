@@ -144,6 +144,7 @@ router.post('/workflow/save', async (req: Request, res: Response) => {
 
     // Extract workflowId from schema or generate one if not present
     const workflowId = workflowSchema.workflowId || `workflow-${Date.now()}`;
+    console.log('workflow:Id : ', workflowId);
     
     // Start the workflow with the schema as args
     const handle = await startWorkflow(workflowId, 'processWorkflow', [workflowSchema], {
@@ -152,12 +153,15 @@ router.post('/workflow/save', async (req: Request, res: Response) => {
         createdAt: new Date().toISOString()
       }
     });
+
+    console.log('runId : ', handle.firstExecutionRunId);
     
     res.json({
       success: true,
       workflowId: handle.workflowId,
       runId: handle.firstExecutionRunId,
       schema: workflowSchema
+      
     });
   } catch (error) {
     console.error('Error saving workflow:', error);
