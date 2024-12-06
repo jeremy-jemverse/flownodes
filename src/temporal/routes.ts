@@ -142,10 +142,14 @@ router.post('/workflow/save', async (req: Request, res: Response) => {
       });
     }
 
+    console.log('Raw request body:', req.body);
+    console.log('Schema type:', typeof workflowSchema);
+    console.log('Schema id type:', typeof workflowSchema.id);
+    console.log('Schema id value:', workflowSchema.id);
+    
     // Extract workflowId from schema or generate one if not present
     const workflowId = workflowSchema.id || `workflow-${Date.now()}`;
-    console.log('Received schema:', JSON.stringify(workflowSchema));
-    console.log('workflow:Id : ', workflowId);
+    console.log('Final workflow:Id : ', workflowId);
     
     // Start the workflow with the schema as args
     const handle = await startWorkflow(workflowId, 'processWorkflow', [workflowSchema], {
