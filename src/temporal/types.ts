@@ -1,3 +1,5 @@
+import type { Duration } from '@temporalio/common';
+
 export interface WorkflowEdge {
   id: string;
   from: string;
