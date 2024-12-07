@@ -1,18 +1,40 @@
-import { Context, sleep, ApplicationFailure } from '@temporalio/activity';
+import { Context, sleep } from '@temporalio/activity';
+import { Client } from 'pg';
+import axios from 'axios';
 
 // Custom error types
-export class PaymentError extends ApplicationFailure {
+export class PaymentError extends Error {
   constructor(message: string) {
-    super(message, 'PAYMENT_ERROR');
+    super(message);
     this.name = 'PaymentError';
   }
 }
 
-export class InventoryError extends ApplicationFailure {
+export class InventoryError extends Error {
   constructor(message: string) {
-    super(message, 'INVENTORY_ERROR');
+    super(message);
     this.name = 'InventoryError';
   }
+}
+
+export class DatabaseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DatabaseError';
+  }
+}
+
+export class WebhookError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WebhookError';
+  }
+}
+
+export interface NodeResult {
+  success: boolean;
+  data?: any;
+  error?: string;
 }
 
 export async function greet(name: string): Promise<string> {
@@ -26,7 +48,7 @@ export async function processPayment(orderId: string, amount: number): Promise<s
   for (let progress = 0; progress <= 100; progress += 20) {
     // Check for cancellation
     if (await context.cancelled) {
-      throw new ApplicationFailure('Payment processing cancelled', 'CANCELLED');
+      throw new Error('Payment processing cancelled');
     }
 
     // Heartbeat with progress
@@ -48,7 +70,7 @@ export async function updateInventory(productId: string, quantity: number): Prom
   // Simulate inventory update with heartbeating
   for (let progress = 0; progress <= 100; progress += 25) {
     if (await context.cancelled) {
-      throw new ApplicationFailure('Inventory update cancelled', 'CANCELLED');
+      throw new Error('Inventory update cancelled');
     }
 
     context.heartbeat(progress);
@@ -68,7 +90,7 @@ export async function cancelPayment(orderId: string): Promise<string> {
   
   for (let progress = 0; progress <= 100; progress += 33) {
     if (await context.cancelled) {
-      throw new ApplicationFailure('Payment cancellation interrupted', 'CANCELLED');
+      throw new Error('Payment cancellation interrupted');
     }
 
     context.heartbeat(progress);
@@ -83,7 +105,7 @@ export async function restoreInventory(productId: string, quantity: number): Pro
   
   for (let progress = 0; progress <= 100; progress += 33) {
     if (await context.cancelled) {
-      throw new ApplicationFailure('Inventory restoration interrupted', 'CANCELLED');
+      throw new Error('Inventory restoration interrupted');
     }
 
     context.heartbeat(progress);
@@ -104,4 +126,53 @@ export async function sendNotification(userId: string, message: string): Promise
 
 export async function logEvent(message: string): Promise<void> {
   console.log(`[${new Date().toISOString()}] ${message}`);
+}
+
+// Node-specific activities
+export async function executeSendGridNode(data: any): Promise<NodeResult> {
+  try {
+    // Make API call to SendGrid endpoint
+    console.log('calling the sendgrid api', data);
+    const response = await fetch('https://flownodes.onrender.com/api/nodes/sendgrid/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+      throw new Error(`SendGrid API error: ${response.statusText}`);
+    }
+
+    return { success: true, data: await response.json() };
+  } catch (error) {
+    throw new PaymentError(error instanceof Error ? error.message : 'Unknown error');
+  }
+}
+
+export async function executePostgresNode(data: any): Promise<NodeResult> {
+  try {
+    const client = new Client(data.connectionString);
+    await client.connect();
+    const result = await client.query(data.query, data.params);
+    await client.end();
+    return { success: true, data: result.rows };
+  } catch (error) {
+    throw new DatabaseError(error instanceof Error ? error.message : 'Unknown error');
+  }
+}
+
+export async function executeWebhookNode(data: any): Promise<NodeResult> {
+  try {
+    const response = await axios.request({
+      url: data.url,
+      method: data.method,
+      headers: data.headers,
+      data: data.body
+    });
+    return { success: true, data: response.data };
+  } catch (error) {
+    throw new WebhookError(error instanceof Error ? error.message : 'Unknown error');
+  }
 }

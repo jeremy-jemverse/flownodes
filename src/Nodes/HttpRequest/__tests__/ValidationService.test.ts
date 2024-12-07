@@ -57,60 +57,57 @@ describe('ValidationService', () => {
     });
 
     describe('retry configuration validation', () => {
-      it('should validate valid retry configuration', () => {
-        const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET',
-          retry: {
-            attempts: 3,
-            delay: 1000,
-            statusCodes: [500, 502, 503]
-          }
-        };
+      const validParams: HttpRequestParameters = {
+        url: 'https://api.example.com/test',
+        method: 'GET',
+        retry: {
+          attempts: 3,
+          delay: 1000,
+          statusCodes: [500, 502, 503]
+        }
+      };
 
-        expect(() => ValidationService.validateParameters(params)).not.toThrow();
+      it('should validate valid retry configuration', () => {
+        expect(() => ValidationService.validateParameters(validParams)).not.toThrow();
       });
 
       it('should throw error for invalid retry attempts', () => {
         const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET',
+          ...validParams,
           retry: {
-            attempts: -1,
-            delay: 1000,
-            statusCodes: [500]
+            ...validParams.retry!,
+            attempts: -1
           }
         };
 
-        expect(() => ValidationService.validateParameters(params)).toThrow('Invalid retry attempts');
+        expect(() => ValidationService.validateParameters(params))
+          .toThrow('Retry attempts must be a positive number');
       });
 
       it('should throw error for invalid retry delay', () => {
         const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET',
+          ...validParams,
           retry: {
-            attempts: 3,
-            delay: -1,
-            statusCodes: [500]
+            ...validParams.retry!,
+            delay: -1
           }
         };
 
-        expect(() => ValidationService.validateParameters(params)).toThrow('Invalid retry delay');
+        expect(() => ValidationService.validateParameters(params))
+          .toThrow('Retry delay must be a positive number');
       });
 
       it('should throw error for invalid status codes', () => {
         const params: HttpRequestParameters = {
-          url: 'https://api.example.com/test',
-          method: 'GET',
+          ...validParams,
           retry: {
-            attempts: 3,
-            delay: 1000,
+            ...validParams.retry!,
             statusCodes: [600]
           }
         };
 
-        expect(() => ValidationService.validateParameters(params)).toThrow('Invalid status codes');
+        expect(() => ValidationService.validateParameters(params))
+          .toThrow('Invalid retry status code');
       });
     });
 
@@ -136,7 +133,8 @@ describe('ValidationService', () => {
           }
         };
 
-        expect(() => ValidationService.validateParameters(params)).toThrow('Invalid cache TTL');
+        expect(() => ValidationService.validateParameters(params))
+          .toThrow('Cache TTL must be a positive number');
       });
     });
 
@@ -159,11 +157,12 @@ describe('ValidationService', () => {
           url: 'https://api.example.com/test',
           method: 'GET',
           headers: {
-            'Accept': null as any
+            'test-header': null as any
           }
         };
 
-        expect(() => ValidationService.validateParameters(params)).toThrow('Invalid header value');
+        expect(() => ValidationService.validateParameters(params))
+          .toThrow('Header values must be strings');
       });
 
       it('should validate valid query parameters', () => {
@@ -184,11 +183,12 @@ describe('ValidationService', () => {
           url: 'https://api.example.com/test',
           method: 'GET',
           queryParams: {
-            page: null as any
+            'test-param': null as any
           }
         };
 
-        expect(() => ValidationService.validateParameters(params)).toThrow('Invalid query parameter value');
+        expect(() => ValidationService.validateParameters(params))
+          .toThrow('Query parameter values must be strings');
       });
     });
   });

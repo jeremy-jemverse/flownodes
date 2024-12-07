@@ -56,6 +56,24 @@ export class ValidationService {
         throw new Error('Cache TTL must be a positive number');
       }
     }
+
+    // Validate headers
+    if (parameters.headers) {
+      for (const [key, value] of Object.entries(parameters.headers)) {
+        if (typeof value !== 'string') {
+          throw new Error('Header values must be strings');
+        }
+      }
+    }
+
+    // Validate query parameters
+    if (parameters.queryParams) {
+      for (const [key, value] of Object.entries(parameters.queryParams)) {
+        if (typeof value !== 'string') {
+          throw new Error('Query parameter values must be strings');
+        }
+      }
+    }
   }
 
   public static shouldRetry(parameters: HttpRequestParameters, statusCode: number | undefined, retryCount: number): boolean {

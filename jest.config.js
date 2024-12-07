@@ -2,15 +2,14 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  testMatch: [
-    '**/temporal/__tests__/**/*.ts'
-  ],
+  setupFilesAfterEnv: ['<rootDir>/src/temporal/__tests__/setup.ts'],
   transform: {
-    '^.+\\.tsx?$': ['ts-jest']
+    '^.+\\.tsx?$': ['ts-jest', {
+      tsconfig: 'tsconfig.json'
+    }]
   },
-  setupFilesAfterEnv: [
-    '<rootDir>/src/temporal/__tests__/setup.ts'
+  testMatch: [
+    '**/__tests__/**/*.test.ts'
   ],
-  maxWorkers: 1,
-  testTimeout: 10000
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node']
 };

@@ -16,6 +16,7 @@ import {
   SearchAttributeValue,
 } from '@temporalio/workflow';
 import type * as activities from '../activities/activities';
+import type { Duration } from '@temporalio/common';
 
 // Activity configurations
 const baseActivities = proxyActivities<typeof activities>({
@@ -217,12 +218,138 @@ export async function example(name: string): Promise<string> {
   return await baseActivities.greet(name);
 }
 
+// Types for workflow schema
+interface WorkflowNode {
+  id: string;
+  type: string;
+  data: any;
+}
+
+interface WorkflowEdge {
+  from: string;
+  to: string;
+}
+
+interface RetryPolicy {
+  maxAttempts: number;
+  initialInterval: Duration;
+}
+
+interface WorkflowExecution {
+  mode: 'sequential' | 'parallel';
+  retryPolicy: RetryPolicy;
+}
+
+interface WorkflowSchema {
+  workflowId: string;
+  name: string;
+  description: string;
+  version: string;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  execution: WorkflowExecution;
+}
+
+// Helper function to get starting nodes (nodes with no incoming edges)
+function getStartingNodes(nodes: WorkflowNode[], edges: WorkflowEdge[]): WorkflowNode[] {
+  const nodesWithIncomingEdges = new Set(edges.map(edge => edge.to));
+  return nodes.filter(node => !nodesWithIncomingEdges.has(node.id));
+}
+
+// Helper function to get next nodes based on edges
+function getNextNodes(nodeId: string, nodes: WorkflowNode[], edges: WorkflowEdge[]): WorkflowNode[] {
+  const nextNodeIds = edges
+    .filter(edge => edge.from === nodeId)
+    .map(edge => edge.to);
+  return nodes.filter(node => nextNodeIds.includes(node.id));
+}
+
 // Workflow schema processor
-export async function processWorkflow(schema: any): Promise<void> {
-  console.log('Processing workflow with schema:', schema);
-  
-  // Here you can implement the logic to process the workflow schema
-  // For now, we'll just log it and complete successfully
-  
-  return;
+export async function processWorkflow(schema: WorkflowSchema): Promise<void> {
+  const {
+    nodes,
+    edges,
+    execution: { mode, retryPolicy }
+  } = schema;
+
+  // Configure activities with retry policy from schema
+  const nodeActivities = proxyActivities<typeof activities>({
+    startToCloseTimeout: '5 minutes',
+    retry: {
+      initialInterval: retryPolicy.initialInterval || '1s',
+      maximumInterval: '1 minute',
+      backoffCoefficient: 2,
+      maximumAttempts: retryPolicy.maxAttempts || 3,
+    },
+  });
+
+  // Get starting nodes
+  const startNodes = getStartingNodes(nodes, edges);
+  if (startNodes.length === 0) {
+    throw new Error('No starting nodes found in workflow');
+  }
+
+  // Process a single node
+  async function processNode(node: WorkflowNode): Promise<void> {
+    try {
+      // Log node execution start
+      await nodeActivities.logEvent(`Starting execution of node: ${node.id} (${node.type})`);
+
+      // Execute node based on type
+      let result;
+      switch (node.type) {
+        case 'sendgrid':
+          console.log('calling sendgrid activity', node.data);
+          result = await nodeActivities.executeSendGridNode(node.data);
+          break;
+        case 'postgres':
+          result = await nodeActivities.executePostgresNode(node.data);
+          break;
+        case 'webhook':
+          result = await nodeActivities.executeWebhookNode(node.data);
+          break;
+        default:
+          throw new Error(`Unsupported node type: ${node.type}`);
+      }
+
+      // Log successful execution
+      await nodeActivities.logEvent(`Node ${node.id} executed successfully: ${JSON.stringify(result)}`);
+
+      // Get and process next nodes
+      const nextNodes = getNextNodes(node.id, nodes, edges);
+      
+      if (mode === 'parallel' && nextNodes.length > 0) {
+        // Execute next nodes in parallel
+        await Promise.all(nextNodes.map(processNode));
+      } else {
+        // Execute next nodes sequentially
+        for (const nextNode of nextNodes) {
+          await processNode(nextNode);
+        }
+      }
+    } catch (error) {
+      // Log error and rethrow
+      await nodeActivities.logEvent(`Error executing node ${node.id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error;
+    }
+  }
+
+  try {
+    if (mode === 'parallel') {
+      // Process starting nodes in parallel
+      await Promise.all(startNodes.map(processNode));
+    } else {
+      // Process starting nodes sequentially
+      for (const startNode of startNodes) {
+        await processNode(startNode);
+      }
+    }
+
+    // Log workflow completion
+    await nodeActivities.logEvent('Workflow completed successfully');
+  } catch (error) {
+    // Log workflow failure
+    await nodeActivities.logEvent(`Workflow failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw error;
+  }
 }

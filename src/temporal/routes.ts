@@ -1,12 +1,25 @@
 import { Router, Request, Response } from 'express';
 import { startWorkflow, getWorkflowStatus, cancelWorkflow, signalWorkflow, queryWorkflow, searchWorkflows } from './client';
 
+interface WorkflowSchema {
+  workflowId: string;
+  nodes: Array<{
+    id: string;
+    type: string;
+    config?: any;
+  }>;
+  edges: Array<{
+    from: string;
+    to: string;
+  }>;
+}
+
 const router = Router();
 
 // Start a workflow
 router.post('/workflow/start', async (req: Request, res: Response) => {
   try {
-    const { workflowType, workflowId, args, searchAttributes, memo, buildId } = req.body;
+    const { workflowId, workflowType, args, searchAttributes, memo, buildId } = req.body;
     
     if (!workflowId || !workflowType) {
       return res.status(400).json({
@@ -133,22 +146,23 @@ router.get('/workflows/search', async (req: Request, res: Response) => {
 // Save workflow schema and start workflow
 router.post('/workflow/save', async (req: Request, res: Response) => {
   try {
-    const workflowSchema = req.body;
+    console.log('Incoming request body:', JSON.stringify(req.body, null, 2));
     
-    if (!workflowSchema) {
+    const workflowSchema = req.body as WorkflowSchema;
+    
+    if (!workflowSchema || !workflowSchema.nodes || !workflowSchema.edges) {
       return res.status(400).json({
         success: false,
         message: 'Workflow schema is required'
       });
     }
 
-    console.log('Raw request body:', req.body);
     console.log('Schema type:', typeof workflowSchema);
-    console.log('Schema id type:', typeof workflowSchema.id);
-    console.log('Schema id value:', workflowSchema.id);
+    console.log('Schema workflowId type:', typeof workflowSchema.workflowId);
+    console.log('Schema workflowId value:', workflowSchema.workflowId);
     
     // Extract workflowId from schema or generate one if not present
-    const workflowId = workflowSchema.id || `workflow-${Date.now()}`;
+    const workflowId = workflowSchema.workflowId || `workflow-${Date.now()}`;
     console.log('Final workflow:Id : ', workflowId);
     
     // Start the workflow with the schema as args
@@ -159,7 +173,7 @@ router.post('/workflow/save', async (req: Request, res: Response) => {
       }
     });
 
-    console.log('runId : ', handle.firstExecutionRunId);
+    console.log('Created workflow with ID:', workflowId);
     
     res.json({
       success: true,

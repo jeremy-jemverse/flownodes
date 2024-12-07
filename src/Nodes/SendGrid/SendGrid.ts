@@ -9,6 +9,7 @@ export class SendGrid {
 
       // Set API key for this request
       sgMail.setApiKey(parameters.apiKey);
+      
 
       // Construct the base email message
       const msg = {

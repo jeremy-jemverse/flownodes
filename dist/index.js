@@ -77,8 +77,11 @@ app.use('/api/nodes/postgres', routes_4.default);
 // Start Temporal worker
 async function startTemporalWorker() {
     try {
+        const defaultAddress = '35.159.193.134:7233';
+        console.log('Connecting worker to Temporal server at:', process.env.TEMPORAL_ADDRESS || defaultAddress);
         const connection = await worker_1.NativeConnection.connect({
-            address: process.env.TEMPORAL_ADDRESS || 'localhost:7233'
+            address: process.env.TEMPORAL_ADDRESS || defaultAddress,
+            tls: false
         });
         const worker = await worker_1.Worker.create({
             connection,
@@ -92,16 +95,21 @@ async function startTemporalWorker() {
     }
     catch (error) {
         console.error('Failed to start Temporal worker:', error);
-        process.exit(1);
+        // Don't exit process on worker error in production
+        if (process.env.NODE_ENV !== 'production') {
+            process.exit(1);
+        }
     }
 }
 // Start server and worker
 async function start() {
     try {
-        await startTemporalWorker();
-        app.listen(PORT, () => {
+        // Start the server first to bind the port
+        const server = app.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
         });
+        // Start the Temporal worker after the server is running
+        await startTemporalWorker();
     }
     catch (error) {
         console.error('Failed to start server:', error);

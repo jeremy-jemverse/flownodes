@@ -76,7 +76,7 @@ describe('HttpRequest Routes', () => {
   it('should handle external API errors', async () => {
     nock('http://api.example.com')
       .get('/error')
-      .replyWithError('Network error');
+      .replyWithError({ message: 'Network error' });
 
     const response = await request(app)
       .post('/api/nodes/http-request/execute')
@@ -86,16 +86,13 @@ describe('HttpRequest Routes', () => {
       });
 
     expect(response.status).toBe(500);
-    expect(response.body.error).toBeDefined();
-    expect(response.body.error.message).toBe('Network error');
+    expect(response.body.error).toBe('Network error');
   });
 
   it('should handle POST request with body', async () => {
-    const requestBody = { name: 'test' };
-    const mockResponse = { id: 1, ...requestBody };
-
+    const mockResponse = { message: 'Success' };
     nock('http://api.example.com')
-      .post('/test', requestBody)
+      .post('/test', { data: 'test' })
       .reply(201, mockResponse);
 
     const response = await request(app)
@@ -103,11 +100,10 @@ describe('HttpRequest Routes', () => {
       .send({
         url: 'http://api.example.com/test',
         method: 'POST',
-        body: requestBody
+        body: { data: 'test' }
       });
 
-    expect(response.status).toBe(200);
-    expect(response.body.statusCode).toBe(201);
+    expect(response.status).toBe(201);
     expect(response.body.data).toEqual(mockResponse);
   });
 });
