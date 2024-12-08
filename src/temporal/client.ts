@@ -35,7 +35,10 @@ class TemporalClient {
       version?: string;
     } = {}
   ) {
-    const { taskQueue = 'default', searchAttributes, memo, version } = options;
+    const { searchAttributes, memo, version } = options;
+    const taskQueue = options.taskQueue || 'flownodes-queue';
+
+    console.log('Starting workflow with task queue:', taskQueue);
 
     return await this.client.start(workflowType, {
       args,
@@ -84,15 +87,17 @@ export async function startWorkflow(
   workflowId: string,
   workflowType: string,
   args: any[] = [],
-  options?: {
+  options: {
     taskQueue?: string;
     searchAttributes?: Partial<SearchAttributes>;
     memo?: Record<string, any>;
     version?: string;
-  }
+  } = {}
 ) {
   const client = await getTemporalClient();
-  return await client.startWorkflow(workflowId, workflowType, args, options);
+  const taskQueue = options.taskQueue || 'flownodes-queue';
+  console.log('Starting workflow with options:', { ...options, taskQueue });
+  return await client.startWorkflow(workflowId, workflowType, args, { ...options, taskQueue });
 }
 
 // Function to get workflow status

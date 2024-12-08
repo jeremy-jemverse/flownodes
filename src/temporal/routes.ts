@@ -19,7 +19,7 @@ const router = Router();
 // Start a workflow
 router.post('/workflow/start', async (req: Request, res: Response) => {
   try {
-    const { workflowId, workflowType, args, searchAttributes, memo, buildId } = req.body;
+    const { workflowId, workflowType, args, searchAttributes, memo, buildId, taskQueue } = req.body;
     
     if (!workflowId || !workflowType) {
       return res.status(400).json({
@@ -31,7 +31,8 @@ router.post('/workflow/start', async (req: Request, res: Response) => {
     const handle = await startWorkflow(workflowId, workflowType, args || [], {
       searchAttributes,
       memo,
-      version: buildId
+      version: buildId,
+      taskQueue: taskQueue || 'flownodes-queue'
     });
     
     res.json({
