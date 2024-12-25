@@ -12,6 +12,13 @@ interface WorkflowSchema {
     from: string;
     to: string;
   }>;
+  execution: {
+    mode: 'sequential' | 'parallel';
+    retryPolicy: {
+      maxAttempts: number;
+      initialInterval: string;
+    };
+  };
 }
 
 const router = Router();
@@ -150,7 +157,30 @@ router.post('/workflow/save', async (req: Request, res: Response) => {
     console.log('Incoming request body:', JSON.stringify(req.body, null, 2));
     
     const workflowSchema = req.body as WorkflowSchema;
-    
+
+    // Validate execution configuration
+    if (!workflowSchema.execution) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing execution configuration'
+      });
+    }
+
+    if (!workflowSchema.execution.retryPolicy) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing retry policy in execution configuration'
+      });
+    }
+
+    if (!workflowSchema.execution.retryPolicy.initialInterval) {
+      workflowSchema.execution.retryPolicy.initialInterval = '1s'; // Set default if not provided
+    }
+
+    if (!workflowSchema.execution.retryPolicy.maxAttempts) {
+      workflowSchema.execution.retryPolicy.maxAttempts = 3; // Set default if not provided
+    }
+
     if (!workflowSchema || !workflowSchema.nodes || !workflowSchema.edges) {
       return res.status(400).json({
         success: false,
