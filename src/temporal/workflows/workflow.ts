@@ -277,9 +277,9 @@ export async function processWorkflow(schema: WorkflowSchema): Promise<void> {
     startToCloseTimeout: '5 minutes',
     retry: {
       initialInterval: retryPolicy.initialInterval || '1s',
-      maximumInterval: '1 minute',
-      backoffCoefficient: 2,
-      maximumAttempts: retryPolicy.maxAttempts || 3,
+      maximumInterval: '30s',  
+      backoffCoefficient: 1.5, 
+      maximumAttempts: Math.min(retryPolicy.maxAttempts || 3, 5), 
     },
   });
 

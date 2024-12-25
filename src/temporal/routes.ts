@@ -173,12 +173,32 @@ router.post('/workflow/save', async (req: Request, res: Response) => {
       });
     }
 
+    // Enforce resource limits
+    const MAX_NODES = 50;
+    const MAX_RETRY_ATTEMPTS = 5;
+    const MAX_INITIAL_INTERVAL = '30s';
+
+    if (workflowSchema.nodes.length > MAX_NODES) {
+      return res.status(400).json({
+        success: false,
+        error: `Workflow cannot have more than ${MAX_NODES} nodes`
+      });
+    }
+
+    // Set and validate retry policy
     if (!workflowSchema.execution.retryPolicy.initialInterval) {
-      workflowSchema.execution.retryPolicy.initialInterval = '1s'; // Set default if not provided
+      workflowSchema.execution.retryPolicy.initialInterval = '1s';
+    } else if (workflowSchema.execution.retryPolicy.initialInterval > MAX_INITIAL_INTERVAL) {
+      workflowSchema.execution.retryPolicy.initialInterval = MAX_INITIAL_INTERVAL;
     }
 
     if (!workflowSchema.execution.retryPolicy.maxAttempts) {
-      workflowSchema.execution.retryPolicy.maxAttempts = 3; // Set default if not provided
+      workflowSchema.execution.retryPolicy.maxAttempts = 3;
+    } else {
+      workflowSchema.execution.retryPolicy.maxAttempts = Math.min(
+        workflowSchema.execution.retryPolicy.maxAttempts,
+        MAX_RETRY_ATTEMPTS
+      );
     }
 
     if (!workflowSchema || !workflowSchema.nodes || !workflowSchema.edges) {
