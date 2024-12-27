@@ -141,13 +141,26 @@ export async function executeSendGridNode(data: any): Promise<NodeResult> {
       body: JSON.stringify(data)
     });
 
+    const responseData = await response.json() as {
+      success?: boolean;
+      message?: string;
+      error?: {
+        message?: string;
+        field?: string;
+        help?: string;
+      };
+    };
+
     if (!response.ok) {
-      throw new Error(`SendGrid API error: ${response.statusText}`);
+      const errorMessage = responseData.error?.message || responseData.message || response.statusText;
+      throw new Error(`SendGrid API error: ${errorMessage}`);
     }
 
-    return { success: true, data: await response.json() };
+    return { success: true, data: responseData };
   } catch (error) {
-    throw new PaymentError(error instanceof Error ? error.message : 'Unknown error');
+    console.error('SendGrid error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new PaymentError(`SendGrid API error: ${message}`);
   }
 }
 

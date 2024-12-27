@@ -30,22 +30,64 @@ describe('Activity Functions', () => {
     };
 
     it('should execute SendGrid node successfully', async () => {
-      const mockResponse = { ok: true, json: async () => ({ success: true }) };
+      const mockResponse = { 
+        ok: true, 
+        json: async () => ({ 
+          success: true, 
+          message: 'Email sent successfully' 
+        }) 
+      };
       global.fetch = jest.fn().mockResolvedValueOnce(mockResponse);
 
       const result = await executeSendGridNode(mockSendGridData);
       expect(result).toBeDefined();
       expect(result.success).toBe(true);
+      expect(result.data.message).toBe('Email sent successfully');
     }, 10000);
 
-    it('should handle SendGrid API errors', async () => {
-      const mockResponse = { ok: false, statusText: 'Bad Request' };
+    it('should handle SendGrid API error with message', async () => {
+      const mockResponse = { 
+        ok: false, 
+        statusText: 'Bad Request',
+        json: async () => ({
+          success: false,
+          message: 'Invalid API key',
+          error: {
+            message: 'API key is invalid',
+            field: 'apiKey',
+            help: 'Please check your API key'
+          }
+        })
+      };
+      global.fetch = jest.fn().mockResolvedValueOnce(mockResponse);
+
+      await expect(executeSendGridNode({
+        ...mockSendGridData,
+        apiKey: 'invalid-key'
+      })).rejects.toThrow('SendGrid API error: API key is invalid');
+    }, 10000);
+
+    it('should handle SendGrid API error with fallback to statusText', async () => {
+      const mockResponse = { 
+        ok: false, 
+        statusText: 'Bad Request',
+        json: async () => ({
+          success: false
+        })
+      };
       global.fetch = jest.fn().mockResolvedValueOnce(mockResponse);
 
       await expect(executeSendGridNode({
         ...mockSendGridData,
         apiKey: 'invalid-key'
       })).rejects.toThrow('SendGrid API error: Bad Request');
+    }, 10000);
+
+    it('should handle network errors', async () => {
+      global.fetch = jest.fn().mockRejectedValueOnce(new Error('Network error'));
+
+      await expect(executeSendGridNode(mockSendGridData))
+        .rejects.toThrow('SendGrid API error: Network error');
     }, 10000);
   });
 
