@@ -34,6 +34,8 @@ export interface SendGridResponse {
   error?: {
     message?: string;
     code?: string;
+    field?: string;
+    help?: string;
     response?: {
       headers?: Record<string, string>;
       body?: any;

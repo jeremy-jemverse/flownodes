@@ -1,6 +1,7 @@
 import { Context, sleep } from '@temporalio/activity';
 import { Client } from 'pg';
 import axios from 'axios';
+import { SendGrid } from '../../Nodes/SendGrid/SendGrid';
 
 // Custom error types
 export class PaymentError extends Error {
@@ -131,36 +132,14 @@ export async function logEvent(message: string): Promise<void> {
 // Node-specific activities
 export async function executeSendGridNode(data: any): Promise<NodeResult> {
   try {
-    // Make API call to SendGrid endpoint
-    console.log('calling the sendgrid api', data);
-    const response = await fetch('https://flownodes.onrender.com/api/nodes/sendgrid/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    });
-
-    const responseData = await response.json() as {
-      success?: boolean;
-      message?: string;
-      error?: {
-        message?: string;
-        field?: string;
-        help?: string;
-      };
-    };
-
-    if (!response.ok) {
-      const errorMessage = responseData.error?.message || responseData.message || response.statusText;
-      throw new Error(`SendGrid API error: ${errorMessage}`);
-    }
-
-    return { success: true, data: responseData };
+    console.log('[Activity] Executing SendGrid node');
+    const sendGrid = new SendGrid();
+    const result = await sendGrid.execute(data);
+    console.log('[Activity] SendGrid execution completed');
+    return { success: true, data: result };
   } catch (error) {
-    console.error('SendGrid error:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    throw new PaymentError(`SendGrid API error: ${message}`);
+    console.error('[Activity] SendGrid execution failed:', error);
+    throw new PaymentError(error instanceof Error ? error.message : 'Unknown error');
   }
 }
 

@@ -1,5 +1,6 @@
-import { executeSendGridNode, executePostgresNode, executeWebhookNode } from '../activities';
-import { mock } from 'jest-mock-extended';
+import { PaymentError, executeSendGridNode, executePostgresNode, executeWebhookNode } from '../activities';
+import { SendGrid } from '../../../Nodes/SendGrid/SendGrid';
+import sgMail from '@sendgrid/mail';
 import axios from 'axios';
 import { Client } from 'pg';
 
@@ -14,6 +15,12 @@ jest.mock('pg', () => ({
   })),
 }));
 
+// Mock SendGrid mail client
+jest.mock('@sendgrid/mail', () => ({
+  setApiKey: jest.fn(),
+  send: jest.fn()
+}));
+
 describe('Activity Functions', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -21,74 +28,37 @@ describe('Activity Functions', () => {
 
   describe('SendGrid Activity', () => {
     const mockSendGridData = {
-      apiKey: 'test-api-key',
-      to: 'test@example.com',
-      from: 'sender@example.com',
-      subject: 'Test Email',
-      type: 'body',
-      body: { content: 'Test email content' }
+      config: {
+        connection: {
+          apiKey: 'test-api-key'
+        },
+        email: {
+          type: 'body',
+          to: 'test@example.com',
+          from: 'sender@example.com',
+          subject: 'Test Email',
+          body: {
+            text: 'Test email content'
+          }
+        }
+      }
     };
 
     it('should execute SendGrid node successfully', async () => {
-      const mockResponse = { 
-        ok: true, 
-        json: async () => ({ 
-          success: true, 
-          message: 'Email sent successfully' 
-        }) 
-      };
-      global.fetch = jest.fn().mockResolvedValueOnce(mockResponse);
+      (sgMail.send as jest.Mock).mockResolvedValueOnce([{ statusCode: 202 }]);
 
       const result = await executeSendGridNode(mockSendGridData);
       expect(result).toBeDefined();
       expect(result.success).toBe(true);
       expect(result.data.message).toBe('Email sent successfully');
-    }, 10000);
+    });
 
-    it('should handle SendGrid API error with message', async () => {
-      const mockResponse = { 
-        ok: false, 
-        statusText: 'Bad Request',
-        json: async () => ({
-          success: false,
-          message: 'Invalid API key',
-          error: {
-            message: 'API key is invalid',
-            field: 'apiKey',
-            help: 'Please check your API key'
-          }
-        })
-      };
-      global.fetch = jest.fn().mockResolvedValueOnce(mockResponse);
-
-      await expect(executeSendGridNode({
-        ...mockSendGridData,
-        apiKey: 'invalid-key'
-      })).rejects.toThrow('SendGrid API error: API key is invalid');
-    }, 10000);
-
-    it('should handle SendGrid API error with fallback to statusText', async () => {
-      const mockResponse = { 
-        ok: false, 
-        statusText: 'Bad Request',
-        json: async () => ({
-          success: false
-        })
-      };
-      global.fetch = jest.fn().mockResolvedValueOnce(mockResponse);
-
-      await expect(executeSendGridNode({
-        ...mockSendGridData,
-        apiKey: 'invalid-key'
-      })).rejects.toThrow('SendGrid API error: Bad Request');
-    }, 10000);
-
-    it('should handle network errors', async () => {
-      global.fetch = jest.fn().mockRejectedValueOnce(new Error('Network error'));
+    it('should handle SendGrid errors', async () => {
+      (sgMail.send as jest.Mock).mockRejectedValueOnce(new Error('SendGrid API key is required'));
 
       await expect(executeSendGridNode(mockSendGridData))
-        .rejects.toThrow('SendGrid API error: Network error');
-    }, 10000);
+        .rejects.toThrow('SendGrid API key is required');
+    });
   });
 
   describe('Postgres Activity', () => {
