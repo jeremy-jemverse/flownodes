@@ -92,12 +92,16 @@ export class SendGrid {
           message: `SendGrid API error: ${errorMessage}${errorField ? ` (${errorField})` : ''}`,
           error: {
             message: errorMessage,
-            field: errorField,
-            help: errorHelp,
             code: String(sgError.code),
             response: {
               headers: sgError.response?.headers,
-              body: sgError.response?.body
+              body: {
+                errors: [{
+                  message: errorMessage,
+                  field: errorField,
+                  help: errorHelp
+                }]
+              }
             }
           }
         };

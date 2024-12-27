@@ -181,8 +181,8 @@ describe('SendGrid', () => {
       expect(result.statusCode).toBe(400);
       expect(result.message).toContain('Invalid sender email');
       expect(result.error?.message).toContain('Invalid sender email');
-      expect(result.error?.field).toBe('from');
-      expect(result.error?.help).toBeDefined();
+      expect(result.error?.response?.body?.errors?.[0]?.field).toBe('from');
+      expect(result.error?.response?.body?.errors?.[0]?.help).toBeDefined();
     });
   });
 
