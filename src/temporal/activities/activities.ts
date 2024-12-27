@@ -135,15 +135,23 @@ export async function executeSendGridNode(nodeData: any): Promise<NodeResult> {
     console.log('[Activity] Executing SendGrid node with data:', JSON.stringify(nodeData, null, 2));
     
     // Transform the workflow input structure to match SendGrid's expected format
+    if (!nodeData?.data?.config) {
+      throw new PaymentError('Invalid node data structure: missing data.config');
+    }
+
     const { config } = nodeData.data;
+    if (!config.email || !config.connection) {
+      throw new PaymentError('Invalid config structure: missing email or connection configuration');
+    }
+
     const sendGridParams = {
       apiKey: config.connection.apiKey,
       to: config.email.to,
       from: config.email.from,
       subject: config.email.subject,
       type: config.email.type,
-      text: config.email.body.text,
-      html: config.email.body.html
+      text: config.email.body?.text || '',
+      html: config.email.body?.html || ''
     };
 
     console.log('[Activity] Transformed SendGrid params:', JSON.stringify(sendGridParams, null, 2));
