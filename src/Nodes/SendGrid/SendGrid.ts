@@ -90,7 +90,11 @@ export class SendGrid {
     console.log('[SendGrid] Processing workflow data:', JSON.stringify(workflowData, null, 2));
     
     // Find the SendGrid node in the workflow
-    const sendGridNode = workflowData.nodes?.find((node: any) => node.type === 'sendgrid');
+    if (!workflowData?.nodes) {
+      throw new Error('Invalid workflow data: missing nodes array');
+    }
+
+    const sendGridNode = workflowData.nodes.find((node: any) => node.type === 'sendgrid');
     if (!sendGridNode) {
       throw new Error('No SendGrid node found in workflow');
     }
@@ -106,7 +110,7 @@ export class SendGrid {
     }
 
     // Transform to SendGrid parameters
-    return {
+    const params = {
       apiKey: config.connection.apiKey,
       to: config.email.to,
       from: config.email.from,
@@ -115,6 +119,13 @@ export class SendGrid {
       text: config.email.body?.text || '',
       html: config.email.body?.html || ''
     };
+
+    console.log('[SendGrid] Transformed parameters:', JSON.stringify({
+      ...params,
+      apiKey: '***' // Hide API key in logs
+    }, null, 2));
+
+    return params;
   }
 
   public async execute(params: SendGridParameters): Promise<SendGridResponse> {

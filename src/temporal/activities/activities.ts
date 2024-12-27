@@ -132,13 +132,14 @@ export async function logEvent(message: string): Promise<void> {
 // Node-specific activities
 export async function executeSendGridNode(workflowData: any): Promise<NodeResult> {
   try {
+    console.log('[Activity] Processing workflow data:', JSON.stringify(workflowData, null, 2));
     const sendGridParams = SendGrid.fromWorkflowData(workflowData);
     const sendGrid = new SendGrid();
     const result = await sendGrid.execute(sendGridParams);
     return { success: true, data: result };
   } catch (error) {
     console.error('[Activity] SendGrid execution failed:', error);
-    throw new PaymentError(error instanceof Error ? error.message : 'Unknown error');
+    throw error;
   }
 }
 
