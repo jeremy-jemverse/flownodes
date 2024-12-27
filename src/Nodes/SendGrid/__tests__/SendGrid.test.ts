@@ -39,7 +39,10 @@ describe('SendGrid', () => {
         to: [validEmail],
         from: validEmail,
         subject: validSubject,
-        text: validText
+        content: [{
+          type: 'text/plain',
+          value: validText
+        }]
       });
       expect(result).toEqual({
         success: true,
@@ -100,7 +103,10 @@ describe('SendGrid', () => {
         to: [validEmail],
         from: validEmail,
         subject: validSubject,
-        text: validText
+        content: [{
+          type: 'text/plain',
+          value: validText
+        }]
       });
       expect(result).toEqual({
         success: true,
@@ -179,10 +185,10 @@ describe('SendGrid', () => {
         to: validEmail,
         from: validEmail,
         subject: validSubject,
-        type: 'invalid' as any  // Type assertion to test invalid type
+        type: 'invalid' as any
       };
 
-      expect(() => sendGrid.validateParameters(params as SendGridParameters)).toThrow();
+      expect(() => sendGrid.validateParameters(params)).toThrow('Invalid email type: invalid');
     });
 
     it('should throw error if neither text nor html is provided for body type', () => {
@@ -208,6 +214,71 @@ describe('SendGrid', () => {
       };
 
       expect(() => sendGrid.validateParameters(params)).not.toThrow();
+    });
+  });
+
+  describe('fromWorkflowData', () => {
+    it('should transform workflow data to SendGrid parameters', () => {
+      const workflowData = {
+        nodes: [{
+          id: 'sendgrid-node',
+          type: 'sendgrid',
+          data: {
+            config: {
+              connection: {
+                apiKey: 'test-api-key'
+              },
+              email: {
+                type: 'body',
+                to: 'test@example.com',
+                from: 'sender@example.com',
+                subject: 'Test Email',
+                body: {
+                  text: 'Test email content'
+                }
+              }
+            }
+          }
+        }]
+      };
+
+      const params = SendGrid.fromWorkflowData(workflowData);
+
+      expect(params).toEqual({
+        apiKey: 'test-api-key',
+        to: 'test@example.com',
+        from: 'sender@example.com',
+        subject: 'Test Email',
+        type: 'body',
+        text: 'Test email content',
+        html: ''
+      });
+    });
+
+    it('should throw error if no SendGrid node is found', () => {
+      const workflowData = {
+        nodes: [{
+          id: 'other-node',
+          type: 'other',
+          data: {}
+        }]
+      };
+
+      expect(() => SendGrid.fromWorkflowData(workflowData))
+        .toThrow('No SendGrid node found in workflow');
+    });
+
+    it('should throw error if node data is invalid', () => {
+      const workflowData = {
+        nodes: [{
+          id: 'sendgrid-node',
+          type: 'sendgrid',
+          data: {}
+        }]
+      };
+
+      expect(() => SendGrid.fromWorkflowData(workflowData))
+        .toThrow('Invalid node data structure: missing data.config');
     });
   });
 });

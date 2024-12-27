@@ -1,7 +1,18 @@
 import sgMail, { MailDataRequired } from '@sendgrid/mail';
 import { SendGridParameters, SendGridResponse } from './types';
 
+interface MailContent {
+  type: string;
+  value: string;
+}
+
 export class SendGrid {
+  private readonly client: typeof sgMail;
+
+  constructor() {
+    this.client = sgMail;
+  }
+
   private validateEmail(email: string): boolean {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
@@ -20,84 +31,101 @@ export class SendGrid {
   }
 
   public validateParameters(params: SendGridParameters): void {
-    console.log('[SendGrid] Validating parameters:', JSON.stringify(params, null, 2));
-    
-    // Validate common required fields first
+    console.log('[SendGrid] Validating parameters:', params);
+
     if (!params.apiKey) {
       throw new Error('SendGrid API key is required');
     }
 
+    if (!params.to) {
+      throw new Error('Recipient email is required');
+    }
+
     if (!params.from) {
-      throw new Error('From email is required');
+      throw new Error('Sender email is required');
     }
 
-    // Type-specific validation
-    if (!params.type) {
-      throw new Error('Email type is required (either "body" or "template")');
+    if (!params.subject) {
+      throw new Error('Email subject is required');
     }
 
-    if (params.type === 'template' && !params.templateId) {
-      throw new Error('Template ID is required for template-based emails');
+    if (!params.type || !['body', 'template'].includes(params.type)) {
+      throw new Error(`Invalid email type: ${params.type}`);
     }
 
     if (params.type === 'body' && !params.text && !params.html) {
       throw new Error('Either HTML or text body is required for body emails');
     }
+
+    if (params.type === 'template' && !params.templateId) {
+      throw new Error('Template ID is required for template emails');
+    }
   }
 
   private formatRequestBody(params: SendGridParameters): MailDataRequired {
     console.log('[SendGrid] Formatting request body');
-    const msg: Partial<MailDataRequired> = {
-      to: this.formatRecipients(params.to),
-      from: this.formatEmailAddress(params.from),
-      subject: params.subject?.trim(),
+    
+    let requestBody: Partial<MailDataRequired> = {
+      to: Array.isArray(params.to) ? params.to : [params.to],
+      from: params.from,
+      subject: params.subject,
     };
 
-    if (params.type === 'template') {
-      console.log('[SendGrid] Processing template email');
-      return {
-        ...msg,
-        templateId: params.templateId,
-        dynamicTemplateData: params.dynamicTemplateData
-      } as MailDataRequired;
-    } else {
+    if (params.type === 'body') {
       console.log('[SendGrid] Processing body email');
-      const content = [];
+      
+      const content: MailContent[] = [];
       
       if (params.text) {
-        content.push({ type: 'text/plain', value: params.text });
+        content.push({
+          type: 'text/plain',
+          value: params.text
+        });
       }
+
       if (params.html) {
-        content.push({ type: 'text/html', value: params.html });
+        content.push({
+          type: 'text/html',
+          value: params.html
+        });
       }
 
       // Ensure at least one content type is present
       if (content.length === 0) {
-        content.push({ type: 'text/plain', value: ' ' });
+        content.push({
+          type: 'text/plain',
+          value: ' '
+        });
       }
+
+      requestBody.content = content;
+    } else if (params.type === 'template') {
+      console.log('[SendGrid] Processing template email');
+      requestBody.templateId = params.templateId;
       
-      return {
-        ...msg,
-        content
-      } as MailDataRequired;
+      if (params.dynamicTemplateData) {
+        requestBody.dynamicTemplateData = params.dynamicTemplateData;
+      }
     }
+
+    console.log('[SendGrid] Request body prepared:', JSON.stringify(requestBody, null, 2));
+    return requestBody as MailDataRequired;
   }
 
   public static fromWorkflowData(workflowData: any): SendGridParameters {
     console.log('[SendGrid] Processing workflow data:', JSON.stringify(workflowData, null, 2));
     
-    // Handle both single node and workflow with nodes array
-    const node = workflowData.type === 'sendgrid' ? workflowData : workflowData.nodes?.find((n: any) => n.type === 'sendgrid');
+    // Find SendGrid node in workflow data
+    const node = workflowData.nodes?.find((n: any) => n.type === 'sendgrid');
     if (!node) {
       throw new Error('No SendGrid node found in workflow');
     }
 
-    // Access the config from the correct path in the node structure
-    const config = node.data?.config;
-    if (!config) {
+    if (!node.data?.config) {
       throw new Error('Invalid node data structure: missing data.config');
     }
 
+    const { config } = node.data;
     if (!config.email || !config.connection) {
       throw new Error('Invalid config structure: missing email or connection configuration');
     }
@@ -133,13 +161,13 @@ export class SendGrid {
       console.log('[SendGrid] Request body prepared:', JSON.stringify(requestBody, null, 2));
 
       // Set API key
-      sgMail.setApiKey(params.apiKey);
+      this.client.setApiKey(params.apiKey);
       console.log('[SendGrid] API key set');
 
       // Send email
       console.log('[SendGrid] Sending email');
       try {
-        const [response] = await sgMail.send(requestBody);
+        const [response] = await this.client.send(requestBody);
         console.log('[SendGrid] Email sent successfully');
 
         return {

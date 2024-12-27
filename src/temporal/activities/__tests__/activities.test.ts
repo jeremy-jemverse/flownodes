@@ -28,23 +28,26 @@ describe('Activity Functions', () => {
 
   describe('SendGrid Activity', () => {
     const mockSendGridData = {
-      type: 'sendgrid',
-      data: {
-        config: {
-          connection: {
-            apiKey: 'test-api-key'
-          },
-          email: {
-            type: 'body',
-            to: 'test@example.com',
-            from: 'sender@example.com',
-            subject: 'Test Email',
-            body: {
-              text: 'Test email content'
+      nodes: [{
+        id: 'sendgrid-node',
+        type: 'sendgrid',
+        data: {
+          config: {
+            connection: {
+              apiKey: 'test-api-key'
+            },
+            email: {
+              type: 'body',
+              to: 'test@example.com',
+              from: 'sender@example.com',
+              subject: 'Test Email',
+              body: {
+                text: 'Test email content'
+              }
             }
           }
         }
-      }
+      }]
     };
 
     it('should execute SendGrid node successfully', async () => {
@@ -57,9 +60,30 @@ describe('Activity Functions', () => {
     });
 
     it('should handle SendGrid errors', async () => {
-      (sgMail.send as jest.Mock).mockRejectedValueOnce(new Error('SendGrid API key is required'));
+      const invalidData = {
+        nodes: [{
+          id: 'sendgrid-node',
+          type: 'sendgrid',
+          data: {
+            config: {
+              connection: {
+                apiKey: '' // Invalid API key
+              },
+              email: {
+                type: 'body',
+                to: 'test@example.com',
+                from: 'sender@example.com',
+                subject: 'Test Email',
+                body: {
+                  text: 'Test email content'
+                }
+              }
+            }
+          }
+        }]
+      };
 
-      await expect(executeSendGridNode(mockSendGridData))
+      await expect(executeSendGridNode(invalidData))
         .rejects.toThrow('SendGrid API key is required');
     });
   });
