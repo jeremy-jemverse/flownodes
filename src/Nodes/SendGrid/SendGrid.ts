@@ -110,7 +110,8 @@ export class SendGrid {
           statusCode: 400,
           message: error.message,
           error: {
-            message: error.message
+            message: error.message,
+            code: '400'
           }
         };
       }
@@ -121,7 +122,8 @@ export class SendGrid {
         statusCode: 500,
         message: 'Failed to send email',
         error: {
-          message: 'Unknown error occurred'
+          message: 'Unknown error occurred',
+          code: '500'
         }
       };
     }

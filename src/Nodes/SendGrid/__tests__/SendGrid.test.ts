@@ -32,6 +32,160 @@ describe('SendGrid', () => {
     jest.clearAllMocks();
   });
 
+  describe('Email Validation', () => {
+    it('should validate email addresses', async () => {
+      const invalidEmailParams = {
+        config: {
+          email: {
+            ...validTemplateParams.config.email,
+            to: 'test@example.com',
+            from: 'invalid-email'
+          },
+          connection: {
+            apiKey: mockApiKey
+          }
+        }
+      };
+
+      const result = await sendGrid.execute(invalidEmailParams);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Invalid sender email address');
+    });
+
+    it('should handle multiple recipients', async () => {
+      const multiRecipientParams = {
+        config: {
+          email: {
+            ...validTemplateParams.config.email,
+            to: ['test1@example.com', 'test2@example.com']
+          },
+          connection: {
+            apiKey: mockApiKey
+          }
+        }
+      };
+
+      const mockResponse = [{
+        statusCode: 202,
+        headers: { 'x-message-id': '123' },
+        body: {}
+      }];
+      (sgMail.send as jest.Mock).mockResolvedValueOnce(mockResponse);
+
+      const result = await sendGrid.execute(multiRecipientParams);
+      expect(result.success).toBe(true);
+      expect(sgMail.send).toHaveBeenCalledWith(expect.objectContaining({
+        to: multiRecipientParams.config.email.to
+      }));
+    });
+
+    it('should validate all recipients in an array', async () => {
+      const invalidRecipientParams = {
+        config: {
+          email: {
+            ...validTemplateParams.config.email,
+            to: ['test1@example.com', 'invalid-email']
+          },
+          connection: {
+            apiKey: mockApiKey
+          }
+        }
+      };
+
+      const result = await sendGrid.execute(invalidRecipientParams);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Invalid recipient email address');
+    });
+  });
+
+  describe('Content Validation', () => {
+    it('should trim whitespace from content', async () => {
+      const whitespaceParams = {
+        config: {
+          email: {
+            type: 'body',
+            from: 'sender@example.com',
+            to: 'test@example.com',
+            subject: '  Test Subject  ',
+            body: {
+              text: '  Test content  ',
+              html: '  <p>Test content</p>  '
+            }
+          },
+          connection: {
+            apiKey: mockApiKey
+          }
+        }
+      };
+
+      const mockResponse = [{
+        statusCode: 202,
+        headers: {},
+        body: {}
+      }];
+      (sgMail.send as jest.Mock).mockResolvedValueOnce(mockResponse);
+
+      const result = await sendGrid.execute(whitespaceParams);
+      expect(result.success).toBe(true);
+      expect(sgMail.send).toHaveBeenCalledWith(expect.objectContaining({
+        subject: 'Test Subject',
+        text: 'Test content',
+        html: '<p>Test content</p>'
+      }));
+    });
+
+    it('should reject empty content after trimming', async () => {
+      const emptyContentParams = {
+        config: {
+          email: {
+            type: 'body',
+            from: 'sender@example.com',
+            to: 'test@example.com',
+            subject: 'Test Subject',
+            body: {
+              text: '   ',
+              html: '   '
+            }
+          },
+          connection: {
+            apiKey: mockApiKey
+          }
+        }
+      };
+
+      const result = await sendGrid.execute(emptyContentParams);
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('Either text or HTML content is required');
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle SendGrid validation errors', async () => {
+      const mockError = {
+        code: 400,
+        response: {
+          headers: {},
+          body: {
+            errors: [{
+              message: 'Invalid sender email',
+              field: 'from',
+              help: 'Please verify your sender identity'
+            }]
+          }
+        }
+      };
+      (sgMail.send as jest.Mock).mockRejectedValueOnce(mockError);
+
+      const result = await sendGrid.execute(validTemplateParams);
+      expect(result.success).toBe(false);
+      expect(result.statusCode).toBe(400);
+      expect(result.message).toContain('Invalid sender email');
+      expect(result.error?.message).toContain('Invalid sender email');
+      expect(result.error?.field).toBe('from');
+      expect(result.error?.help).toBeDefined();
+    });
+  });
+
   describe('Body-based emails', () => {
     const validBodyParams = {
       config: {
@@ -63,7 +217,7 @@ describe('SendGrid', () => {
 
       expect(sgMail.setApiKey).toHaveBeenCalledWith(mockApiKey);
       expect(sgMail.send).toHaveBeenCalledWith({
-        to: validBodyParams.config.email.to,
+        to: [validBodyParams.config.email.to],
         from: validBodyParams.config.email.from,
         subject: validBodyParams.config.email.subject,
         text: validBodyParams.config.email.body.text,
@@ -132,7 +286,7 @@ describe('SendGrid', () => {
 
       expect(sgMail.setApiKey).toHaveBeenCalledWith(mockApiKey);
       expect(sgMail.send).toHaveBeenCalledWith({
-        to: validTemplateParams.config.email.to,
+        to: [validTemplateParams.config.email.to],
         from: validTemplateParams.config.email.from,
         subject: validTemplateParams.config.email.subject,
         templateId: validTemplateParams.config.email.templateId,
