@@ -115,8 +115,13 @@ export class SendGrid {
   public static fromWorkflowData(workflowData: any): SendGridParameters {
     console.log('[SendGrid] Processing workflow data:', JSON.stringify(workflowData, null, 2));
     
-    // Find SendGrid node in workflow data
-    const node = workflowData.nodes?.find((n: any) => n.type.toLowerCase() === 'sendgrid');
+    // Handle both single node and full workflow data
+    const node = workflowData.nodes 
+      ? workflowData.nodes.find((n: any) => n.type.toLowerCase() === 'sendgrid')
+      : workflowData.type?.toLowerCase() === 'sendgrid' 
+        ? workflowData 
+        : null;
+
     if (!node) {
       throw new Error('No SendGrid node found in workflow');
     }
