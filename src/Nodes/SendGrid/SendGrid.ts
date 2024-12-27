@@ -19,14 +19,10 @@ export class SendGrid {
     return recipients.map(recipient => this.formatEmailAddress(recipient));
   }
 
-  private validateParameters(params: SendGridParameters): void {
+  public validateParameters(params: SendGridParameters): void {
     console.log('[SendGrid] Validating parameters:', JSON.stringify(params, null, 2));
     
-    // Default to "body" type if undefined or empty
-    if (!params.type) {
-      params.type = 'body';
-    }
-    
+    // Validate common required fields first
     if (!params.apiKey) {
       throw new Error('SendGrid API key is required');
     }
@@ -35,12 +31,13 @@ export class SendGrid {
       throw new Error('From email is required');
     }
 
-    if (!params.to) {
-      throw new Error('To email is required');
+    // Type-specific validation
+    if (!params.type) {
+      throw new Error('Email type is required (either "body" or "template")');
     }
 
     if (params.type === 'template' && !params.templateId) {
-      throw new Error('Template ID is required for template emails');
+      throw new Error('Template ID is required for template-based emails');
     }
 
     if (params.type === 'body' && !params.text && !params.html) {
@@ -89,22 +86,18 @@ export class SendGrid {
   public static fromWorkflowData(workflowData: any): SendGridParameters {
     console.log('[SendGrid] Processing workflow data:', JSON.stringify(workflowData, null, 2));
     
-    // Find the SendGrid node in the workflow
-    if (!workflowData?.nodes) {
-      throw new Error('Invalid workflow data: missing nodes array');
-    }
-
-    const sendGridNode = workflowData.nodes.find((node: any) => node.type === 'sendgrid');
-    if (!sendGridNode) {
+    // Handle both single node and workflow with nodes array
+    const node = workflowData.type === 'sendgrid' ? workflowData : workflowData.nodes?.find((n: any) => n.type === 'sendgrid');
+    if (!node) {
       throw new Error('No SendGrid node found in workflow');
     }
 
-    // Validate node structure
-    if (!sendGridNode.data?.config) {
+    // Access the config from the correct path in the node structure
+    const config = node.data?.config;
+    if (!config) {
       throw new Error('Invalid node data structure: missing data.config');
     }
 
-    const { config } = sendGridNode.data;
     if (!config.email || !config.connection) {
       throw new Error('Invalid config structure: missing email or connection configuration');
     }

@@ -299,8 +299,8 @@ export async function processWorkflow(schema: WorkflowSchema): Promise<void> {
       let result;
       switch (node.type) {
         case 'sendgrid':
-          console.log('calling sendgrid activity', node.data);
-          result = await nodeActivities.executeSendGridNode(node.data);
+          console.log('calling sendgrid activity', node);
+          result = await nodeActivities.executeSendGridNode(node);
           break;
         case 'postgres':
           result = await nodeActivities.executePostgresNode(node.data);

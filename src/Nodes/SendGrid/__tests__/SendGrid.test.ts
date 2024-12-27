@@ -170,7 +170,7 @@ describe('SendGrid', () => {
         type: 'body'
       };
 
-      expect(() => sendGrid.validate(params)).toThrow();
+      expect(() => sendGrid.validateParameters(params)).toThrow();
     });
 
     it('should throw error if type is invalid', () => {
@@ -182,7 +182,7 @@ describe('SendGrid', () => {
         type: 'invalid' as any  // Type assertion to test invalid type
       };
 
-      expect(() => sendGrid.validate(params as SendGridParameters)).toThrow();
+      expect(() => sendGrid.validateParameters(params as SendGridParameters)).toThrow();
     });
 
     it('should throw error if neither text nor html is provided for body type', () => {
@@ -194,7 +194,7 @@ describe('SendGrid', () => {
         type: 'body'
       };
 
-      expect(() => sendGrid.validate(params)).toThrow();
+      expect(() => sendGrid.validateParameters(params)).toThrow();
     });
 
     it('should not throw error if text is provided for body type', () => {
@@ -207,7 +207,7 @@ describe('SendGrid', () => {
         text: validText
       };
 
-      expect(() => sendGrid.validate(params)).not.toThrow();
+      expect(() => sendGrid.validateParameters(params)).not.toThrow();
     });
   });
 });

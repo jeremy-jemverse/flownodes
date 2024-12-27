@@ -28,17 +28,20 @@ describe('Activity Functions', () => {
 
   describe('SendGrid Activity', () => {
     const mockSendGridData = {
-      config: {
-        connection: {
-          apiKey: 'test-api-key'
-        },
-        email: {
-          type: 'body',
-          to: 'test@example.com',
-          from: 'sender@example.com',
-          subject: 'Test Email',
-          body: {
-            text: 'Test email content'
+      type: 'sendgrid',
+      data: {
+        config: {
+          connection: {
+            apiKey: 'test-api-key'
+          },
+          email: {
+            type: 'body',
+            to: 'test@example.com',
+            from: 'sender@example.com',
+            subject: 'Test Email',
+            body: {
+              text: 'Test email content'
+            }
           }
         }
       }
