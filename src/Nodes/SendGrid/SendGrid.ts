@@ -1,5 +1,5 @@
-import sgMail, { MailDataRequired, MailService } from '@sendgrid/mail';
-import { SendGridParameters, SendGridResponse, SendGridBodyParameters, SendGridTemplateParameters } from './types';
+import sgMail, { MailDataRequired } from '@sendgrid/mail';
+import { SendGridParameters, SendGridResponse } from './types';
 
 export class SendGrid {
   private validateEmail(email: string): boolean {
@@ -7,7 +7,7 @@ export class SendGrid {
     return emailRegex.test(email);
   }
 
-  private formatEmailAddress(email: string, name?: string): string {
+  private formatEmailAddress(email: string): string {
     if (!this.validateEmail(email)) {
       throw new Error(`Invalid email address: ${email}`);
     }
@@ -19,16 +19,12 @@ export class SendGrid {
     return recipients.map(recipient => this.formatEmailAddress(recipient));
   }
 
-  public validate(params: SendGridParameters): void {
-    this.validateParameters(params);
-  }
-
   private validateParameters(params: SendGridParameters): void {
     console.log('[SendGrid] Validating parameters:', JSON.stringify(params, null, 2));
     
     // Default to "body" type if undefined or empty
     if (!params.type) {
-      (params as SendGridBodyParameters).type = 'body';
+      params.type = 'body';
     }
     
     if (!params.apiKey) {
@@ -90,6 +86,37 @@ export class SendGrid {
     }
   }
 
+  public static fromWorkflowData(workflowData: any): SendGridParameters {
+    console.log('[SendGrid] Processing workflow data:', JSON.stringify(workflowData, null, 2));
+    
+    // Find the SendGrid node in the workflow
+    const sendGridNode = workflowData.nodes?.find((node: any) => node.type === 'sendgrid');
+    if (!sendGridNode) {
+      throw new Error('No SendGrid node found in workflow');
+    }
+
+    // Validate node structure
+    if (!sendGridNode.data?.config) {
+      throw new Error('Invalid node data structure: missing data.config');
+    }
+
+    const { config } = sendGridNode.data;
+    if (!config.email || !config.connection) {
+      throw new Error('Invalid config structure: missing email or connection configuration');
+    }
+
+    // Transform to SendGrid parameters
+    return {
+      apiKey: config.connection.apiKey,
+      to: config.email.to,
+      from: config.email.from,
+      subject: config.email.subject,
+      type: config.email.type,
+      text: config.email.body?.text || '',
+      html: config.email.body?.html || ''
+    };
+  }
+
   public async execute(params: SendGridParameters): Promise<SendGridResponse> {
     try {
       console.log('[SendGrid] Starting execution');
@@ -128,8 +155,7 @@ export class SendGrid {
 
     } catch (error) {
       console.error('[SendGrid] Error:', error);
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      throw new Error(message);
+      throw error;
     }
   }
 }

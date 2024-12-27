@@ -130,35 +130,11 @@ export async function logEvent(message: string): Promise<void> {
 }
 
 // Node-specific activities
-export async function executeSendGridNode(nodeData: any): Promise<NodeResult> {
+export async function executeSendGridNode(workflowData: any): Promise<NodeResult> {
   try {
-    console.log('[Activity] Executing SendGrid node with data:', JSON.stringify(nodeData, null, 2));
-    
-    // Transform the workflow input structure to match SendGrid's expected format
-    if (!nodeData?.data?.config) {
-      throw new PaymentError('Invalid node data structure: missing data.config');
-    }
-
-    const { config } = nodeData.data;
-    if (!config.email || !config.connection) {
-      throw new PaymentError('Invalid config structure: missing email or connection configuration');
-    }
-
-    const sendGridParams = {
-      apiKey: config.connection.apiKey,
-      to: config.email.to,
-      from: config.email.from,
-      subject: config.email.subject,
-      type: config.email.type,
-      text: config.email.body?.text || '',
-      html: config.email.body?.html || ''
-    };
-
-    console.log('[Activity] Transformed SendGrid params:', JSON.stringify(sendGridParams, null, 2));
-    
+    const sendGridParams = SendGrid.fromWorkflowData(workflowData);
     const sendGrid = new SendGrid();
     const result = await sendGrid.execute(sendGridParams);
-    console.log('[Activity] SendGrid execution completed');
     return { success: true, data: result };
   } catch (error) {
     console.error('[Activity] SendGrid execution failed:', error);
