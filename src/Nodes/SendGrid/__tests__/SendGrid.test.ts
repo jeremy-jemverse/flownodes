@@ -11,6 +11,21 @@ jest.mock('@sendgrid/mail', () => ({
 describe('SendGrid', () => {
   let sendGrid: SendGrid;
   const mockApiKey = 'test-api-key';
+  const validTemplateParams = {
+    config: {
+      email: {
+        type: 'template',
+        from: 'sender@example.com',
+        to: 'test@example.com',
+        subject: 'Test Subject',
+        templateId: 'd-template-id',
+        dynamicTemplateData: { name: 'Test User' }
+      },
+      connection: {
+        apiKey: mockApiKey
+      }
+    }
+  };
 
   beforeEach(() => {
     sendGrid = new SendGrid();
@@ -18,14 +33,22 @@ describe('SendGrid', () => {
   });
 
   describe('Body-based emails', () => {
-    const validBodyParams: SendGridBodyParameters = {
-      type: 'body',
-      apiKey: mockApiKey,
-      to: 'test@example.com',
-      from: 'sender@example.com',
-      subject: 'Test Subject',
-      text: 'Test content',
-      html: '<p>Test HTML content</p>'
+    const validBodyParams = {
+      config: {
+        email: {
+          type: 'body',
+          to: 'test@example.com',
+          from: 'sender@example.com',
+          subject: 'Test Subject',
+          body: {
+            text: 'Test content',
+            html: '<p>Test HTML content</p>'
+          }
+        },
+        connection: {
+          apiKey: mockApiKey
+        }
+      }
     };
 
     it('should send a body-based email successfully', async () => {
@@ -40,20 +63,30 @@ describe('SendGrid', () => {
 
       expect(sgMail.setApiKey).toHaveBeenCalledWith(mockApiKey);
       expect(sgMail.send).toHaveBeenCalledWith({
-        to: validBodyParams.to,
-        from: validBodyParams.from,
-        subject: validBodyParams.subject,
-        text: validBodyParams.text,
-        html: validBodyParams.html
+        to: validBodyParams.config.email.to,
+        from: validBodyParams.config.email.from,
+        subject: validBodyParams.config.email.subject,
+        text: validBodyParams.config.email.body.text,
+        html: validBodyParams.config.email.body.html
       });
       expect(result.success).toBe(true);
       expect(result.statusCode).toBe(202);
     });
 
     it('should handle body-based email with only text content', async () => {
-      const textOnlyParams: SendGridBodyParameters = {
-        ...validBodyParams,
-        html: undefined
+      const textOnlyParams = {
+        config: {
+          email: {
+            ...validBodyParams.config.email,
+            body: {
+              text: 'Test content',
+              html: undefined
+            }
+          },
+          connection: {
+            apiKey: mockApiKey
+          }
+        }
       };
       const mockResponse = [{ statusCode: 202, headers: {}, body: {} }];
       (sgMail.send as jest.Mock).mockResolvedValueOnce(mockResponse);
@@ -65,10 +98,19 @@ describe('SendGrid', () => {
     });
 
     it('should fail if neither text nor html is provided', async () => {
-      const invalidParams: SendGridBodyParameters = {
-        ...validBodyParams,
-        text: undefined,
-        html: undefined
+      const invalidParams = {
+        config: {
+          email: {
+            ...validBodyParams.config.email,
+            body: {
+              text: undefined,
+              html: undefined
+            }
+          },
+          connection: {
+            apiKey: mockApiKey
+          }
+        }
       };
 
       const result = await sendGrid.execute(invalidParams);
@@ -78,16 +120,6 @@ describe('SendGrid', () => {
   });
 
   describe('Template-based emails', () => {
-    const validTemplateParams: SendGridTemplateParameters = {
-      type: 'template',
-      apiKey: mockApiKey,
-      to: 'test@example.com',
-      from: 'sender@example.com',
-      subject: 'Test Subject',
-      templateId: 'd-template-id',
-      dynamicTemplateData: { name: 'Test User' }
-    };
-
     it('should send a template-based email successfully', async () => {
       const mockResponse = [{
         statusCode: 202,
@@ -100,20 +132,27 @@ describe('SendGrid', () => {
 
       expect(sgMail.setApiKey).toHaveBeenCalledWith(mockApiKey);
       expect(sgMail.send).toHaveBeenCalledWith({
-        to: validTemplateParams.to,
-        from: validTemplateParams.from,
-        subject: validTemplateParams.subject,
-        templateId: validTemplateParams.templateId,
-        dynamicTemplateData: validTemplateParams.dynamicTemplateData
+        to: validTemplateParams.config.email.to,
+        from: validTemplateParams.config.email.from,
+        subject: validTemplateParams.config.email.subject,
+        templateId: validTemplateParams.config.email.templateId,
+        dynamicTemplateData: validTemplateParams.config.email.dynamicTemplateData
       });
       expect(result.success).toBe(true);
       expect(result.statusCode).toBe(202);
     });
 
     it('should handle template without dynamic data', async () => {
-      const templateWithoutDataParams: SendGridTemplateParameters = {
-        ...validTemplateParams,
-        dynamicTemplateData: undefined
+      const templateWithoutDataParams = {
+        config: {
+          email: {
+            ...validTemplateParams.config.email,
+            dynamicTemplateData: undefined
+          },
+          connection: {
+            apiKey: mockApiKey
+          }
+        }
       };
       const mockResponse = [{ statusCode: 202, headers: {}, body: {} }];
       (sgMail.send as jest.Mock).mockResolvedValueOnce(mockResponse);
@@ -128,13 +167,16 @@ describe('SendGrid', () => {
 
     it('should fail if templateId is not provided', async () => {
       const invalidParams = {
-        type: 'template',
-        apiKey: mockApiKey,
-        to: 'test@example.com',
-        from: 'sender@example.com',
-        subject: 'Test Subject',
-        templateId: ''  
-      } as SendGridTemplateParameters;
+        config: {
+          email: {
+            ...validTemplateParams.config.email,
+            templateId: undefined
+          },
+          connection: {
+            apiKey: mockApiKey
+          }
+        }
+      };
 
       const result = await sendGrid.execute(invalidParams);
       expect(result.success).toBe(false);
@@ -147,22 +189,13 @@ describe('SendGrid', () => {
       const mockError = {
         code: 401,
         response: {
-          statusCode: 401,
-          body: {
-            errors: [{ message: 'Invalid API key' }]
-          }
+          headers: {},
+          body: { errors: [{ message: 'Invalid API key' }] }
         }
       };
       (sgMail.send as jest.Mock).mockRejectedValueOnce(mockError);
 
-      const result = await sendGrid.execute({
-        type: 'body',
-        apiKey: 'invalid-key',
-        to: 'test@example.com',
-        from: 'sender@example.com',
-        subject: 'Test',
-        text: 'Test'
-      });
+      const result = await sendGrid.execute(validTemplateParams);
 
       expect(result.success).toBe(false);
       expect(result.statusCode).toBe(401);

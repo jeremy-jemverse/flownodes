@@ -2,27 +2,41 @@ import sgMail, { MailDataRequired } from '@sendgrid/mail';
 import { SendGridParameters, SendGridResponse, SendGridBodyParameters, SendGridTemplateParameters } from './types';
 
 export class SendGrid {
-  public async execute(parameters: SendGridParameters): Promise<SendGridResponse> {
+  public async execute(parameters: any): Promise<SendGridResponse> {
     try {
+      // Transform incoming data to SendGrid parameters
+      const sendGridParams = {
+        type: parameters.config.email.type,
+        apiKey: parameters.config.connection.apiKey,
+        from: parameters.config.email.from,
+        to: parameters.config.email.to,
+        subject: parameters.config.email.subject,
+        text: parameters.config.email.body?.text,
+        html: parameters.config.email.body?.html,
+        ...(parameters.config.email.type === 'template' && {
+          templateId: parameters.config.email.templateId,
+          dynamicTemplateData: parameters.config.email.dynamicTemplateData
+        })
+      };
+
       // Validate parameters before sending
-      this.validateParameters(parameters);
+      this.validateParameters(sendGridParams);
 
       // Set API key for this request
-      sgMail.setApiKey(parameters.apiKey);
-      
+      sgMail.setApiKey(sendGridParams.apiKey);
 
       // Construct the base email message
       const msg = {
-        to: parameters.to,
-        from: parameters.from,
-        subject: parameters.subject,
+        to: sendGridParams.to,
+        from: sendGridParams.from,
+        subject: sendGridParams.subject,
       } as MailDataRequired;
 
       // Add content based on email type
-      if (parameters.type === 'template') {
-        this.addTemplateContent(msg, parameters);
+      if (sendGridParams.type === 'template') {
+        this.addTemplateContent(msg, sendGridParams as SendGridTemplateParameters);
       } else {
-        this.addBodyContent(msg, parameters);
+        this.addBodyContent(msg, sendGridParams as SendGridBodyParameters);
       }
 
       // Send email using SendGrid
@@ -40,16 +54,17 @@ export class SendGrid {
 
     } catch (error) {
       // Handle SendGrid specific errors
-      if (error && typeof error === 'object' && 'response' in error) {
-        const sgError = error as { code: string; response: { statusCode: number; body: any } };
+      if (error && typeof error === 'object' && 'code' in error) {
+        const sgError = error as { code: number; response: { headers: any; body: any } };
         return {
           success: false,
-          statusCode: sgError.response?.statusCode || 500,
+          statusCode: sgError.code,
           message: 'Failed to send email',
           error: {
-            message: sgError.response?.body?.message || 'SendGrid API error',
-            code: sgError.code,
+            message: sgError.response?.body?.errors?.[0]?.message || 'SendGrid API error',
+            code: String(sgError.code),
             response: {
+              headers: sgError.response?.headers,
               body: sgError.response?.body
             }
           }
