@@ -1,4 +1,4 @@
-import sgMail, { MailDataRequired } from '@sendgrid/mail';
+import sgMail, { MailDataRequired, MailService } from '@sendgrid/mail';
 import { SendGridParameters, SendGridResponse, SendGridBodyParameters, SendGridTemplateParameters } from './types';
 
 export class SendGrid {
@@ -11,7 +11,7 @@ export class SendGrid {
     if (!this.validateEmail(email)) {
       throw new Error(`Invalid email address: ${email}`);
     }
-    return name ? `${name} <${email}>` : email;
+    return email;
   }
 
   private formatRecipients(to: string | string[]): string[] {
@@ -47,14 +47,14 @@ export class SendGrid {
       throw new Error('Template ID is required for template emails');
     }
 
-    if (params.type === 'body' && !params.html && !params.text) {
+    if (params.type === 'body' && !params.text && !params.html) {
       throw new Error('Either HTML or text body is required for body emails');
     }
   }
 
-  private formatRequestBody(params: any): any {
+  private formatRequestBody(params: SendGridParameters): MailDataRequired {
     console.log('[SendGrid] Formatting request body');
-    const msg = {
+    const msg: Partial<MailDataRequired> = {
       to: this.formatRecipients(params.to),
       from: this.formatEmailAddress(params.from),
       subject: params.subject?.trim(),
@@ -66,25 +66,38 @@ export class SendGrid {
         ...msg,
         templateId: params.templateId,
         dynamicTemplateData: params.dynamicTemplateData
-      };
+      } as MailDataRequired;
     } else {
       console.log('[SendGrid] Processing body email');
+      const content = [];
+      
+      if (params.text) {
+        content.push({ type: 'text/plain', value: params.text });
+      }
+      if (params.html) {
+        content.push({ type: 'text/html', value: params.html });
+      }
+
+      // Ensure at least one content type is present
+      if (content.length === 0) {
+        content.push({ type: 'text/plain', value: ' ' });
+      }
+      
       return {
         ...msg,
-        text: params.text,
-        html: params.html
-      };
+        content
+      } as MailDataRequired;
     }
   }
 
-  public async execute(params: any): Promise<any> {
+  public async execute(params: SendGridParameters): Promise<SendGridResponse> {
     try {
       console.log('[SendGrid] Starting execution');
       
-      // Validate all parameters
+      // Validate parameters
       this.validateParameters(params);
-      
-      // Format the request body
+
+      // Format request body
       const requestBody = this.formatRequestBody(params);
       console.log('[SendGrid] Request body prepared:', JSON.stringify(requestBody, null, 2));
 
@@ -94,14 +107,24 @@ export class SendGrid {
 
       // Send email
       console.log('[SendGrid] Sending email');
-      const [response] = await sgMail.send(requestBody);
-      console.log('[SendGrid] Email sent successfully');
+      try {
+        const [response] = await sgMail.send(requestBody);
+        console.log('[SendGrid] Email sent successfully');
 
-      return {
-        success: true,
-        statusCode: response.statusCode,
-        message: 'Email sent successfully'
-      };
+        return {
+          success: true,
+          statusCode: response.statusCode,
+          message: 'Email sent successfully'
+        };
+      } catch (error: any) {
+        console.error('[SendGrid] Error details:', {
+          message: error.message,
+          code: error.code,
+          response: error.response?.body,
+          errors: error.response?.body?.errors
+        });
+        throw error;
+      }
 
     } catch (error) {
       console.error('[SendGrid] Error:', error);
