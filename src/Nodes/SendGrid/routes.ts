@@ -12,7 +12,7 @@ router.post('/send', async (req, res) => {
 
     try {
       // Validate parameters
-      sendGrid.validateParameters(parameters);
+      sendGrid.validate(parameters);
     } catch (error) {
       return res.status(400).json({
         success: false,

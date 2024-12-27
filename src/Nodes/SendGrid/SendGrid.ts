@@ -19,58 +19,60 @@ export class SendGrid {
     return recipients.map(recipient => this.formatEmailAddress(recipient));
   }
 
-  private validateParameters(params: any): void {
+  public validate(params: SendGridParameters): void {
+    this.validateParameters(params);
+  }
+
+  private validateParameters(params: SendGridParameters): void {
     console.log('[SendGrid] Validating parameters:', JSON.stringify(params, null, 2));
     
-    if (!params.config?.connection?.apiKey) {
+    // Default to "body" type if undefined or empty
+    if (!params.type) {
+      (params as SendGridBodyParameters).type = 'body';
+    }
+    
+    if (!params.apiKey) {
       throw new Error('SendGrid API key is required');
     }
 
-    if (!params.config?.email?.from) {
+    if (!params.from) {
       throw new Error('From email is required');
     }
 
-    if (!params.config?.email?.to) {
+    if (!params.to) {
       throw new Error('To email is required');
     }
 
-    if (!params.config?.email?.type) {
-      throw new Error('Email type is required');
-    }
-
-    if (params.config.email.type === 'template' && !params.config.email.templateId) {
+    if (params.type === 'template' && !params.templateId) {
       throw new Error('Template ID is required for template emails');
     }
 
-    if (params.config.email.type === 'body' && !params.config.email.body) {
-      throw new Error('Email body is required for body emails');
+    if (params.type === 'body' && !params.html && !params.text) {
+      throw new Error('Either HTML or text body is required for body emails');
     }
   }
 
   private formatRequestBody(params: any): any {
     console.log('[SendGrid] Formatting request body');
-    const { config } = params;
-    const { email } = config;
-
     const msg = {
-      to: this.formatRecipients(email.to),
-      from: this.formatEmailAddress(email.from),
-      subject: email.subject?.trim(),
+      to: this.formatRecipients(params.to),
+      from: this.formatEmailAddress(params.from),
+      subject: params.subject?.trim(),
     };
 
-    if (email.type === 'template') {
+    if (params.type === 'template') {
       console.log('[SendGrid] Processing template email');
       return {
         ...msg,
-        templateId: email.templateId,
-        dynamicTemplateData: email.dynamicTemplateData
+        templateId: params.templateId,
+        dynamicTemplateData: params.dynamicTemplateData
       };
     } else {
       console.log('[SendGrid] Processing body email');
       return {
         ...msg,
-        text: email.body?.text,
-        html: email.body?.html
+        text: params.text,
+        html: params.html
       };
     }
   }
@@ -87,16 +89,17 @@ export class SendGrid {
       console.log('[SendGrid] Request body prepared:', JSON.stringify(requestBody, null, 2));
 
       // Set API key
-      sgMail.setApiKey(params.config.connection.apiKey);
+      sgMail.setApiKey(params.apiKey);
       console.log('[SendGrid] API key set');
 
       // Send email
       console.log('[SendGrid] Sending email');
-      await sgMail.send(requestBody);
+      const [response] = await sgMail.send(requestBody);
       console.log('[SendGrid] Email sent successfully');
 
       return {
         success: true,
+        statusCode: response.statusCode,
         message: 'Email sent successfully'
       };
 

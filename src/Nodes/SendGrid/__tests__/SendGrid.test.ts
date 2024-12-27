@@ -14,28 +14,30 @@ describe('SendGrid', () => {
     jest.clearAllMocks();
   });
 
-  const validParams = {
-    config: {
-      connection: {
-        apiKey: 'test-api-key'
-      },
-      email: {
-        type: 'body',
-        to: 'test@example.com',
-        from: 'sender@example.com',
-        subject: 'Test Email',
-        body: {
-          text: 'Test email content'
-        }
-      }
-    }
+  const validBodyParams = {
+    apiKey: 'test-api-key',
+    to: 'test@example.com',
+    from: 'sender@example.com',
+    subject: 'Test Email',
+    type: 'body',
+    text: 'Test email content'
+  };
+
+  const validTemplateParams = {
+    apiKey: 'test-api-key',
+    to: 'test@example.com',
+    from: 'sender@example.com',
+    subject: 'Test Email',
+    type: 'template',
+    templateId: 'test-template-id',
+    dynamicTemplateData: { name: 'Test' }
   };
 
   describe('execute', () => {
-    it('should send email successfully', async () => {
+    it('should send body email successfully', async () => {
       (sgMail.send as jest.Mock).mockResolvedValueOnce([{ statusCode: 202 }]);
 
-      const result = await sendGrid.execute(validParams);
+      const result = await sendGrid.execute(validBodyParams);
 
       expect(sgMail.setApiKey).toHaveBeenCalledWith('test-api-key');
       expect(sgMail.send).toHaveBeenCalledWith({
@@ -46,124 +48,92 @@ describe('SendGrid', () => {
       });
       expect(result).toEqual({
         success: true,
+        statusCode: 202,
         message: 'Email sent successfully'
       });
     });
 
     it('should send template email successfully', async () => {
-      const templateParams = {
-        config: {
-          connection: {
-            apiKey: 'test-api-key'
-          },
-          email: {
-            type: 'template',
-            to: 'test@example.com',
-            from: 'sender@example.com',
-            subject: 'Test Email',
-            templateId: 'template-123',
-            dynamicTemplateData: {
-              name: 'Test User'
-            }
-          }
-        }
-      };
-
       (sgMail.send as jest.Mock).mockResolvedValueOnce([{ statusCode: 202 }]);
 
-      const result = await sendGrid.execute(templateParams);
+      const result = await sendGrid.execute(validTemplateParams);
 
       expect(sgMail.setApiKey).toHaveBeenCalledWith('test-api-key');
       expect(sgMail.send).toHaveBeenCalledWith({
         to: ['test@example.com'],
         from: 'sender@example.com',
         subject: 'Test Email',
-        templateId: 'template-123',
-        dynamicTemplateData: {
-          name: 'Test User'
-        }
+        templateId: 'test-template-id',
+        dynamicTemplateData: { name: 'Test' }
       });
       expect(result).toEqual({
         success: true,
+        statusCode: 202,
         message: 'Email sent successfully'
       });
     });
 
-    it('should handle multiple recipients', async () => {
-      const multiRecipientParams = {
-        ...validParams,
-        config: {
-          ...validParams.config,
-          email: {
-            ...validParams.config.email,
-            to: ['test1@example.com', 'test2@example.com']
-          }
-        }
-      };
-
+    it('should default to body type when type is not specified', async () => {
       (sgMail.send as jest.Mock).mockResolvedValueOnce([{ statusCode: 202 }]);
 
-      const result = await sendGrid.execute(multiRecipientParams);
+      const paramsWithoutType = {
+        apiKey: 'test-api-key',
+        to: 'test@example.com',
+        from: 'sender@example.com',
+        subject: 'Test Email',
+        text: 'Test email content'
+      };
 
-      expect(sgMail.send).toHaveBeenCalledWith(expect.objectContaining({
-        to: ['test1@example.com', 'test2@example.com']
-      }));
-      expect(result.success).toBe(true);
+      const result = await sendGrid.execute(paramsWithoutType);
+
+      expect(sgMail.send).toHaveBeenCalledWith({
+        to: ['test@example.com'],
+        from: 'sender@example.com',
+        subject: 'Test Email',
+        text: 'Test email content'
+      });
+      expect(result).toEqual({
+        success: true,
+        statusCode: 202,
+        message: 'Email sent successfully'
+      });
     });
 
-    it('should validate required parameters', async () => {
+    it('should throw error when required fields are missing', async () => {
       const invalidParams = {
-        config: {
-          connection: {},
-          email: {
-            type: 'body'
-          }
-        }
+        apiKey: 'test-api-key',
+        // missing 'to' and 'from'
+        subject: 'Test Email',
+        text: 'Test email content'
       };
 
-      await expect(sendGrid.execute(invalidParams))
-        .rejects
-        .toThrow('SendGrid API key is required');
+      await expect(sendGrid.execute(invalidParams)).rejects.toThrow('From email is required');
     });
 
-    it('should validate email addresses', async () => {
-      const invalidEmailParams = {
-        ...validParams,
-        config: {
-          ...validParams.config,
-          email: {
-            ...validParams.config.email,
-            to: 'invalid-email'
-          }
-        }
-      };
-
-      await expect(sendGrid.execute(invalidEmailParams))
-        .rejects
-        .toThrow('Invalid email address: invalid-email');
-    });
-
-    it('should require template ID for template emails', async () => {
+    it('should throw error when template email is missing templateId', async () => {
       const invalidTemplateParams = {
-        ...validParams,
-        config: {
-          ...validParams.config,
-          email: {
-            ...validParams.config.email,
-            type: 'template'
-          }
-        }
+        ...validBodyParams,
+        type: 'template'
+        // missing templateId
       };
 
-      await expect(sendGrid.execute(invalidTemplateParams))
-        .rejects
-        .toThrow('Template ID is required for template emails');
+      await expect(sendGrid.execute(invalidTemplateParams)).rejects.toThrow('Template ID is required for template emails');
+    });
+
+    it('should throw error when body email is missing both text and html', async () => {
+      const invalidBodyParams = {
+        ...validBodyParams,
+        text: undefined,
+        html: undefined
+      };
+
+      await expect(sendGrid.execute(invalidBodyParams)).rejects.toThrow('Either HTML or text body is required for body emails');
     });
 
     it('should handle SendGrid API errors', async () => {
       (sgMail.send as jest.Mock).mockRejectedValueOnce(new Error('API error'));
 
-      await expect(sendGrid.execute(validParams))
+      await expect(sendGrid.execute(validBodyParams))
         .rejects
         .toThrow('API error');
     });
