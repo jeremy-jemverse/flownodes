@@ -12,6 +12,7 @@ import temporalRoutes from './temporal/routes';
 import httpRequestRoutes from './Nodes/HttpRequest/routes';
 import sendGridRoutes from './Nodes/SendGrid/routes';
 import postgresRoutes from './Nodes/Postgres/routes';
+import embeddingRoutes from './Nodes/Embeddings/routes';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 4000;
@@ -44,6 +45,7 @@ app.use('/api/temporal', temporalRoutes);
 app.use('/api/nodes/http-request', httpRequestRoutes);
 app.use('/api/nodes/sendgrid', sendGridRoutes);
 app.use('/api/nodes/postgres', postgresRoutes);
+app.use('/api/nodes/embeddings', embeddingRoutes);
 
 // Start Temporal worker
 async function startTemporalWorker() {
